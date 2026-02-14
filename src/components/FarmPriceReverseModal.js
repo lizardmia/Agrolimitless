@@ -219,3 +219,7 @@ function FarmPriceReverseModal({
 if (typeof window !== 'undefined') {
     window.FarmPriceReverseModal = FarmPriceReverseModal;
 }
+
+// ES6 模块导出（用于 Vite 构建）
+// 在 Vite 构建时会被正确处理，CDN 模式下通过 window.FarmPriceReverseModal 访问
+export { FarmPriceReverseModal };

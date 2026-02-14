@@ -33,4 +33,7 @@ function Header() {
 if (typeof window !== 'undefined') {
     window.Header = Header;
 }
-// 注意：在 CDN 模式下不使用 ES6 export，因为 Babel Standalone 会转换为 CommonJS
+
+// ES6 模块导出（用于 Vite 构建）
+// 在 Vite 构建时会被正确处理，CDN 模式下通过 window.Header 访问
+export { Header };
