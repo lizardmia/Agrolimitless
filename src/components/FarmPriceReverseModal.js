@@ -1,6 +1,11 @@
 /**
  * FarmPriceReverseModal 组件 - 倒推农场采购价弹窗（CDN 版本）
  */
+// 获取 React（Vite 模式下从全局获取，CDN 模式下也是全局）
+const React = typeof window !== 'undefined' ? window.React : (typeof global !== 'undefined' ? global.React : null);
+if (!React) {
+    throw new Error('React is not available. Make sure React is loaded before this component.');
+}
 const { useState } = React;
 const h = React.createElement;
 

@@ -9,7 +9,7 @@ import { ExchangeRateCards } from './ExchangeRateCards';
 import { ResultsPanel } from './ResultsPanel';
 import { CostBreakdown } from './CostBreakdown';
 import { FinancePanel } from './FinancePanel';
-import { FarmPriceReverseModal } from './FarmPriceReverseModal';
+import { FarmPriceReverseModal } from './FarmPriceReverseModal.tsx';
 // 导入工具函数
 import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations';
 import { DEFAULT_VALUES } from '../config/constants';
