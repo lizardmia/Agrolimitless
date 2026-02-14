@@ -1,0 +1,17 @@
+# Netlify 部署配置
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# 单页应用路由重定向（所有路由指向 index.html）
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# 静态资源缓存（可选）
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
