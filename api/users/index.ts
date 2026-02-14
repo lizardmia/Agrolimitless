@@ -4,7 +4,7 @@
  * 仅管理员可以访问
  */
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 
 export default async function handler(
   req: VercelRequest,

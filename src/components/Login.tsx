@@ -25,10 +25,12 @@ export function Login({ onLoginSuccess }: LoginProps) {
             if (result.success) {
                 onLoginSuccess();
             } else {
+                console.error('Login failed:', result.error);
                 setError(result.error || '登录失败');
             }
         } catch (err: any) {
-            setError(err.message || '登录失败');
+            console.error('Login error:', err);
+            setError(err.message || '登录失败，请检查网络连接');
         } finally {
             setLoading(false);
         }

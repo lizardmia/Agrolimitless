@@ -9,7 +9,10 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables');
+  console.error('Missing Supabase environment variables:');
+  console.error('SUPABASE_URL:', supabaseUrl ? '✓ Set' : '✗ Missing');
+  console.error('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✓ Set' : '✗ Missing');
+  throw new Error('Missing Supabase environment variables. Please configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Dashboard.');
 }
 
 // 创建 Supabase 客户端（使用 service_role key，可以绕过 RLS）

@@ -46,9 +46,15 @@ CREATE POLICY "Allow public read access" ON users
 -- 服务端密钥会绕过 RLS，所以这里主要是为了文档说明
 
 -- 8. 插入默认管理员账号（密码：admin123）
--- 注意：密码需要先通过 bcrypt 哈希
--- 这里先不插入，等 API 创建时再插入
--- 或者可以使用 Supabase Dashboard 手动插入
+-- 注意：这个哈希值对应密码 "admin123"，使用 bcrypt rounds=10 生成
+-- 如果密码不同，请使用在线工具生成新的哈希：https://bcrypt-generator.com/
+INSERT INTO users (username, password_hash, role)
+VALUES (
+    'admin',
+    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',  -- admin123 的 bcrypt 哈希
+    'admin'
+)
+ON CONFLICT (username) DO NOTHING;  -- 如果已存在则不插入
 
 -- 查看表结构
 SELECT column_name, data_type, is_nullable, column_default

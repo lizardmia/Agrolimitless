@@ -47,10 +47,24 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
 // 登录（API 模式）
 async function loginAPI(username: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
-        const data = await apiRequest('/auth/login', {
+        const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({ username, password }),
         });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error('Login API error:', {
+                status: response.status,
+                statusText: response.statusText,
+                data
+            });
+            return { success: false, error: data.error || data.message || `服务器错误 (${response.status})` };
+        }
 
         if (data.success && data.user) {
             // 保存到 localStorage（用于前端状态管理）
@@ -60,7 +74,8 @@ async function loginAPI(username: string, password: string): Promise<{ success: 
 
         return { success: false, error: data.error || '登录失败' };
     } catch (error: any) {
-        return { success: false, error: error.message || '登录失败' };
+        console.error('Login API request failed:', error);
+        return { success: false, error: error.message || '网络错误，请检查 API 配置' };
     }
 }
 

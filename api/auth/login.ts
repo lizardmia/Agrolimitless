@@ -3,7 +3,7 @@
  * POST /api/auth/login
  */
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 import bcrypt from 'bcryptjs';
 
 export default async function handler(
@@ -48,6 +48,12 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('Login error:', error);
-    return res.status(500).json({ error: '服务器错误' });
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    return res.status(500).json({ 
+      error: '服务器错误',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }

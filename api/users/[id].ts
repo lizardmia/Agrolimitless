@@ -4,7 +4,7 @@
  * DELETE /api/users/[id] - 删除用户
  */
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase.js';
 import bcrypt from 'bcryptjs';
 
 export default async function handler(
