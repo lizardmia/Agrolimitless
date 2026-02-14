@@ -30,6 +30,10 @@ function getConstants() {
 
 // 在函数内部获取，而不是在文件顶部
 function App() {
+    // 从全局获取认证函数
+    const auth = window.auth || {};
+    const { isAuthenticated, isAdmin, logout, getCurrentUser } = auth;
+    
     // 从全局获取组件（每次渲染时获取，确保最新）
     const Header = getComponent('Header');
     const ExchangeRateCards = getComponent('ExchangeRateCards');
@@ -38,10 +42,21 @@ function App() {
     const CostBreakdown = getComponent('CostBreakdown');
     const FinancePanel = getComponent('FinancePanel');
     const FarmPriceReverseModal = getComponent('FarmPriceReverseModal');
+    const Login = getComponent('Login');
+    const UserManagement = getComponent('UserManagement');
     
     // 从全局获取工具函数
     const { calculatePricing, PRODUCT_CATEGORIES } = getCalculations();
     const { DEFAULT_VALUES } = getConstants();
+    
+    // === 认证状态 ===
+    const [authenticated, setAuthenticated] = useState(() => {
+        if (isAuthenticated) {
+            return isAuthenticated();
+        }
+        return false;
+    });
+    const [showUserManagement, setShowUserManagement] = useState(false);
     
     // 检查必需的组件是否已加载
     if (!Header || !ExchangeRateCards || !Sidebar || !ResultsPanel || !CostBreakdown || !FinancePanel) {
@@ -116,6 +131,43 @@ function App() {
     
     // 弹窗状态
     const [isReverseModalOpen, setIsReverseModalOpen] = useState(false);
+    
+    // === 认证处理 ===
+    const handleLoginSuccess = () => {
+        setAuthenticated(true);
+    };
+
+    const handleLogout = () => {
+        if (logout) {
+            logout();
+        }
+        setAuthenticated(false);
+        setShowUserManagement(false);
+    };
+    
+    // 如果未登录，显示登录页面
+    console.log('=== 认证检查 ===');
+    console.log('authenticated:', authenticated);
+    console.log('isAuthenticated 函数:', isAuthenticated);
+    console.log('Login 组件:', Login);
+    console.log('auth 对象:', auth);
+    
+    if (!authenticated) {
+        console.log('❌ 用户未登录，显示登录页面');
+        if (!Login) {
+            console.warn('Login 组件未加载');
+            return h('div', { className: "min-h-screen bg-[#f4f7fe] flex items-center justify-center" },
+                h('div', { className: "text-center" },
+                    h('p', { className: "text-gray-600" }, "正在加载登录组件..."),
+                    h('p', { className: "text-xs text-gray-400 mt-2" }, "如果长时间未加载，请检查浏览器控制台")
+                )
+            );
+        }
+        console.log('✅ 渲染 Login 组件');
+        return h(Login, { onLoginSuccess: handleLoginSuccess });
+    }
+    
+    console.log('✅ 用户已登录，显示主应用');
     
     // 暴露打开弹窗的函数到全局（供JS组件调用）
     useEffect(() => {
@@ -193,8 +245,28 @@ function App() {
     
     // === 渲染 ===
     return h('div', { className: "min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800" },
-        h(Header),
-        h('div', { className: "max-w-7xl mx-auto space-y-6" },
+        // 用户管理按钮和登出按钮
+        h('div', { className: "max-w-7xl mx-auto mb-4" },
+            h('div', { className: "flex justify-between items-center" },
+                h('div', { className: "flex gap-3" },
+                    isAdmin && isAdmin() && UserManagement && h('button', {
+                        onClick: () => setShowUserManagement(!showUserManagement),
+                        className: "bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 transition-colors text-sm"
+                    }, showUserManagement ? '← 返回' : '👤 用户管理'),
+                    h('div', { className: "flex items-center gap-2 text-sm text-gray-600" },
+                        h('span', null, `当前用户: ${getCurrentUser ? getCurrentUser()?.username || '' : ''}`),
+                        isAdmin && isAdmin() && h('span', { className: "px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold" }, "管理员")
+                    )
+                ),
+                h('button', {
+                    onClick: handleLogout,
+                    className: "bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition-colors text-sm"
+                }, "登出")
+            )
+        ),
+        // 用户管理页面或主应用
+        showUserManagement && isAdmin && isAdmin() && UserManagement ? h(UserManagement) : h('div', { className: "max-w-7xl mx-auto space-y-6" },
+            h(Header),
             h(ExchangeRateCards, {
                 exchangeRate,
                 setExchangeRate,
@@ -334,6 +406,7 @@ function App() {
                 collectionDays,
                 interestRate
             })
+        )
         )
     );
 }

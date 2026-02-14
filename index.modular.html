@@ -40,6 +40,7 @@
     <!-- 工具函数和配置（先加载） -->
     <script type="text/babel" src="src/utils/calculations.js"></script>
     <script type="text/babel" src="src/config/constants.js"></script>
+    <script type="text/babel" src="src/utils/auth.js"></script>
     
     <!-- 验证工具函数是否加载 -->
     <script>
@@ -47,13 +48,17 @@
         setTimeout(function() {
             console.log('检查全局变量:', {
                 calculations: typeof window.calculations !== 'undefined',
-                constants: typeof window.constants !== 'undefined'
+                constants: typeof window.constants !== 'undefined',
+                auth: typeof window.auth !== 'undefined'
             });
             if (typeof window.calculations === 'undefined') {
                 console.error('calculations 未加载！');
             }
             if (typeof window.constants === 'undefined') {
                 console.error('constants 未加载！');
+            }
+            if (typeof window.auth === 'undefined') {
+                console.error('auth 未加载！');
             }
         }, 500);
     </script>
@@ -80,6 +85,8 @@
     <script type="text/babel" src="src/components/CostBreakdown.js"></script>
     <script type="text/babel" src="src/components/FinancePanel.js"></script>
     <script type="text/babel" src="src/components/FarmPriceReverseModal.js"></script>
+    <script type="text/babel" src="src/components/Login.js"></script>
+    <script type="text/babel" src="src/components/UserManagement.js"></script>
     <script type="text/babel" src="src/components/App.new.js"></script>
     
     <!-- 入口文件（最后加载） -->

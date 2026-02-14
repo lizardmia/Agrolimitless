@@ -11,7 +11,7 @@ export default defineConfig({
     sourcemap: false, // 生产环境关闭 sourcemap 以减小体积
     rollupOptions: {
       input: {
-        main: './index.vite.html'
+        main: './index.html'
       }
     }
   },
@@ -20,8 +20,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',  // 允许外部访问（支持域名和 IP）
     port: 8000,
-    open: true,
+    open: true,  // 自动打开浏览器
     cors: true,
+    strictPort: false,  // 如果端口被占用，尝试其他端口
   },
   resolve: {
     alias: {

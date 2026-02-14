@@ -10,12 +10,46 @@ import { ResultsPanel } from './ResultsPanel';
 import { CostBreakdown } from './CostBreakdown';
 import { FinancePanel } from './FinancePanel';
 import { FarmPriceReverseModal } from './FarmPriceReverseModal.tsx';
+import { Login } from './Login.tsx';
+import { UserManagement } from './UserManagement.tsx';
 // 导入工具函数
-import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations';
-import { DEFAULT_VALUES } from '../config/constants';
+import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations.ts';
+import { DEFAULT_VALUES } from '../config/constants.js';
+import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra } from '../types/index.d';
 
 export function App() {
+    // === 认证状态 ===
+    // 检查登录状态（添加详细日志）
+    const checkAuth = () => {
+        try {
+            const currentUser = getCurrentUser();
+            console.log('=== 认证检查开始 ===');
+            console.log('getCurrentUser() 返回值:', currentUser);
+            console.log('localStorage.getItem("currentUser"):', localStorage.getItem('currentUser'));
+            
+            const auth = isAuthenticated();
+            console.log('isAuthenticated() 返回值:', auth);
+            
+            if (auth) {
+                console.log('✅ 用户已登录:', currentUser);
+            } else {
+                console.log('❌ 用户未登录，应该显示登录页面');
+            }
+            console.log('=== 认证检查结束 ===');
+            return auth;
+        } catch (error) {
+            console.error('认证检查出错:', error);
+            return false;
+        }
+    };
+    
+    const [authenticated, setAuthenticated] = useState(() => {
+        const auth = checkAuth();
+        return auth;
+    });
+    const [showUserManagement, setShowUserManagement] = useState(false);
+    
     // === 状态管理 ===
     const [exchangeRate, setExchangeRate] = useState(DEFAULT_VALUES.exchangeRate);
     const [usdCnyRate, setUsdCnyRate] = useState(DEFAULT_VALUES.usdCnyRate);
@@ -141,6 +175,29 @@ export function App() {
         };
     }, []);
     
+    // === 认证处理 ===
+    const handleLoginSuccess = () => {
+        setAuthenticated(true);
+    };
+
+    const handleLogout = () => {
+        logout();
+        setAuthenticated(false);
+        setShowUserManagement(false);
+    };
+
+    // 如果未登录，显示登录页面
+    console.log('=== 渲染检查 ===');
+    console.log('authenticated 状态:', authenticated);
+    console.log('Login 组件:', Login);
+    
+    if (!authenticated) {
+        console.log('✅ 显示登录页面');
+        return <Login onLoginSuccess={handleLoginSuccess} />;
+    }
+    
+    console.log('✅ 用户已登录，显示主应用');
+
     // === 渲染 ===
     return (
         <>
@@ -171,7 +228,38 @@ export function App() {
             />
             <div className="min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800">
             <div className="max-w-7xl mx-auto space-y-6">
-                <Header />
+                {/* 用户管理按钮和登出按钮 */}
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex gap-3">
+                        {isAdmin() && (
+                            <button
+                                onClick={() => setShowUserManagement(!showUserManagement)}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 transition-colors text-sm"
+                            >
+                                {showUserManagement ? '← 返回' : '👤 用户管理'}
+                            </button>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span>当前用户: {getCurrentUser()?.username}</span>
+                            {isAdmin() && (
+                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">管理员</span>
+                            )}
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleLogout}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition-colors text-sm"
+                    >
+                        登出
+                    </button>
+                </div>
+
+                {/* 用户管理页面 */}
+                {showUserManagement && isAdmin() ? (
+                    <UserManagement />
+                ) : (
+                    <>
+                        <Header />
                 <ExchangeRateCards
                     exchangeRate={exchangeRate}
                     setExchangeRate={setExchangeRate}
@@ -299,6 +387,8 @@ export function App() {
                         interestExpense={results.interestExpense}
                     />
                 </div>
+                    </>
+                )}
             </div>
         </div>
         </>
