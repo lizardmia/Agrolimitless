@@ -1,0 +1,36 @@
+{
+  "name": "pricing-dashboard",
+  "version": "1.0.0",
+  "description": "Agrolimitless & Transglobe 定价看板 - 跨境供应链全链路核算系统",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:python": "python3 dev-server.py",
+    "dev:domain": "python3 dev-server-domain.py",
+    "setup:domain": "./setup-domain.sh",
+    "serve": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "pricing",
+    "dashboard",
+    "supply-chain",
+    "react",
+    "vite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
+  }
+}

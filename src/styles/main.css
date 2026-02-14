@@ -1,0 +1,39 @@
+@keyframes slide-in-from-top {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-in {
+    animation: slide-in-from-top 0.3s ease-out;
+}
+
+/* 自定义滚动条样式 */
+.scrollable-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollable-list::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb {
+    background: rgba(249, 115, 22, 0.3);
+    border-radius: 10px;
+}
+
+.scrollable-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(249, 115, 22, 0.5);
+}
+
+/* Firefox 滚动条样式 */
+.scrollable-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(249, 115, 22, 0.3) transparent;
+}

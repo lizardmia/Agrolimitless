@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agrolimitless & Transglobe 定价看板</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 样式文件 -->
+    <link rel="stylesheet" href="src/styles/main.css">
+    
+    <!-- 验证库是否加载成功 -->
+    <script>
+        window.addEventListener('load', function() {
+            if (typeof React === 'undefined') {
+                console.error('React 未加载');
+                document.body.innerHTML = '<div style="padding: 20px; font-family: sans-serif;"><h1 style="color: red;">错误：React 库加载失败</h1><p>请检查网络连接或刷新页面。</p></div>';
+            } else if (typeof ReactDOM === 'undefined') {
+                console.error('ReactDOM 未加载');
+                document.body.innerHTML = '<div style="padding: 20px; font-family: sans-serif;"><h1 style="color: red;">错误：ReactDOM 库加载失败</h1><p>请检查网络连接或刷新页面。</p></div>';
+            } else {
+                console.log('React 版本:', React.version);
+                console.log('ReactDOM 已加载');
+            }
+        });
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- 工具函数和配置（先加载） -->
+    <script type="text/babel" src="src/utils/calculations.js"></script>
+    <script type="text/babel" src="src/config/constants.js"></script>
+    
+    <!-- 验证工具函数是否加载 -->
+    <script>
+        // 等待 Babel 处理完成
+        setTimeout(function() {
+            console.log('检查全局变量:', {
+                calculations: typeof window.calculations !== 'undefined',
+                constants: typeof window.constants !== 'undefined'
+            });
+            if (typeof window.calculations === 'undefined') {
+                console.error('calculations 未加载！');
+            }
+            if (typeof window.constants === 'undefined') {
+                console.error('constants 未加载！');
+            }
+        }, 500);
+    </script>
+    
+    <!-- 组件文件（按依赖顺序加载） -->
+    <script type="text/babel" src="src/components/Icon.js"></script>
+    
+    <!-- 验证 Icon 是否加载 -->
+    <script>
+        setTimeout(function() {
+            console.log('检查 Icon:', typeof window.Icon !== 'undefined');
+            if (typeof window.Icon === 'undefined') {
+                console.error('Icon 未加载！');
+            }
+        }, 500);
+    </script>
+    <script type="text/babel" src="src/components/Header.js"></script>
+    <script type="text/babel" src="src/components/ExchangeRateCards.js"></script>
+    <script type="text/babel" src="src/components/OverseaSection.js"></script>
+    <script type="text/babel" src="src/components/PolicySection.js"></script>
+    <script type="text/babel" src="src/components/DomesticSection.js"></script>
+    <script type="text/babel" src="src/components/Sidebar.js"></script>
+    <script type="text/babel" src="src/components/ResultsPanel.js"></script>
+    <script type="text/babel" src="src/components/CostBreakdown.js"></script>
+    <script type="text/babel" src="src/components/FinancePanel.js"></script>
+    <script type="text/babel" src="src/components/FarmPriceReverseModal.js"></script>
+    <script type="text/babel" src="src/components/App.new.js"></script>
+    
+    <!-- 入口文件（最后加载） -->
+    <script type="text/babel" src="src/index.js"></script>
+</body>
+</html>
