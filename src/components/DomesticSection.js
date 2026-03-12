@@ -6,8 +6,12 @@ function DomesticSection({
     setImportPriceRub,
     importPriceUnit,
     setImportPriceUnit,
-    intlFreightUsd,
-    setIntlFreightUsd,
+    intlFreightOverseasUsd,
+    setIntlFreightOverseasUsd,
+    intlFreightDomesticUsd,
+    setIntlFreightDomesticUsd,
+    insuranceRate,
+    setInsuranceRate,
     domesticShortHaulCny,
     setDomesticShortHaulCny,
     domesticExtras,
@@ -46,18 +50,48 @@ function DomesticSection({
                     className: "w-full p-1 bg-transparent border-none text-xl font-black text-orange-800 focus:ring-0 outline-none"
                 })
             ),
+            h('div', { className: "grid grid-cols-2 gap-2" },
+                h('div', null,
+                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "中欧班列运费 - 国外段 (USD/柜)"),
+                    h('input', {
+                        type: "number",
+                        value: intlFreightOverseasUsd === 0 ? '' : intlFreightOverseasUsd,
+                        onChange: e => {
+                            const val = e.target.value;
+                            setIntlFreightOverseasUsd(val === '' ? 0 : Number(val));
+                        },
+                        placeholder: "0",
+                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
+                    })
+                ),
+                h('div', null,
+                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "中欧班列运费 - 国内段 (USD/柜)"),
+                    h('input', {
+                        type: "number",
+                        value: intlFreightDomesticUsd === 0 ? '' : intlFreightDomesticUsd,
+                        onChange: e => {
+                            const val = e.target.value;
+                            setIntlFreightDomesticUsd(val === '' ? 0 : Number(val));
+                        },
+                        placeholder: "0",
+                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
+                    })
+                )
+            ),
             h('div', null,
-                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "中欧班列运费 (USD/柜)"),
+                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "保费率"),
                 h('input', {
                     type: "number",
-                    value: intlFreightUsd === 0 ? '' : intlFreightUsd,
+                    step: "0.001",
+                    value: insuranceRate === 0 ? '' : insuranceRate,
                     onChange: e => {
                         const val = e.target.value;
-                        setIntlFreightUsd(val === '' ? 0 : Number(val));
+                        setInsuranceRate(val === '' ? 0 : Number(val));
                     },
-                    placeholder: "0",
+                    placeholder: "0.003",
                     className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
-                })
+                }),
+                h('p', { className: "text-[9px] text-slate-400 mt-1" }, "默认值: 0.003 (0.3%)，保费 = (进口结算货值 + 国际运费国外段) × 保费率 (CNY/t)")
             ),
             h('div', null,
                 h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "国内陆运/短驳费 (CNY/柜)"),

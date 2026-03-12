@@ -7,7 +7,9 @@ function CostBreakdown({
     policyName,
     importPriceRub,
     exchangeRate,
-    intlFreightUsd,
+    intlFreightOverseasUsd,
+    intlFreightDomesticUsd,
+    insuranceRate,
     usdCnyRate,
     tonsPerContainer,
     dutyRate,
@@ -30,7 +32,7 @@ function CostBreakdown({
             val: results.customValueCny,
             color: 'bg-purple-600',
             isTitle: true,
-            calc: '进口结算货值 (CNY/t) + 国际运费 (CNY/t)',
+            calc: '(进口结算货值 (CNY/t) + 国际运费国外段 (CNY/t)) × (1 + 保费率)',
             children: [
                 {
                     label: '进口结算货值 (CNY/t)',
@@ -39,10 +41,16 @@ function CostBreakdown({
                     calc: `${importPriceRub} / ${exchangeRate}`
                 },
                 {
-                    label: '国际运费 (CNY/t)',
-                    val: results.intlFreightCnyPerTon,
+                    label: '国际运费国外段 (CNY/t)',
+                    val: results.intlFreightOverseasCnyPerTon,
                     color: 'bg-indigo-400',
-                    calc: `(${intlFreightUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
+                    calc: `(${intlFreightOverseasUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
+                },
+                {
+                    label: '保费 (CNY/t)',
+                    val: (results.importValueCny + results.intlFreightOverseasCnyPerTon) * insuranceRate,
+                    color: 'bg-purple-400',
+                    calc: `(进口结算货值 + 国际运费国外段) × ${insuranceRate}`
                 }
             ]
         },
@@ -62,7 +70,15 @@ function CostBreakdown({
             color: 'bg-rose-400',
             calc: `(完税价格 + 关税) × 增值税率`
         },
-        // 4. 国内物流总费用 (domesticLogisticsCnyPerTon)
+        // 4. 国际运费国内段 (intlFreightDomesticCnyPerTon)
+        {
+            type: 'item',
+            label: '国际运费国内段 (CNY/t)',
+            val: results.intlFreightDomesticCnyPerTon,
+            color: 'bg-indigo-300',
+            calc: `(${intlFreightDomesticUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
+        },
+        // 5. 国内物流总费用 (domesticLogisticsCnyPerTon)
         {
             type: 'group',
             label: '国内物流总费用 (domesticLogisticsCnyPerTon)',

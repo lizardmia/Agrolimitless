@@ -19,6 +19,7 @@ import './components/ExchangeRateCards.js';
 import './components/OverseaSection.js';
 import './components/PolicySection.js';
 import './components/DomesticSection.js';
+import './components/ExportPolicySection.js';
 import './components/ResultsPanel.js';
 import './components/CostBreakdown.js';
 import './components/FinancePanel.js';

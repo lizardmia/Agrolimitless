@@ -52,8 +52,12 @@ export interface SidebarProps {
     setImportPriceRub: (value: number) => void;
     importPriceUnit: string;
     setImportPriceUnit: (value: string) => void | React.Dispatch<React.SetStateAction<'RUB/t' | 'RUB/柜'>>;
-    intlFreightUsd: number;
-    setIntlFreightUsd: (value: number) => void;
+    intlFreightOverseasUsd: number;
+    setIntlFreightOverseasUsd: (value: number) => void;
+    intlFreightDomesticUsd: number;
+    setIntlFreightDomesticUsd: (value: number) => void;
+    insuranceRate: number;
+    setInsuranceRate: (value: number) => void;
     domesticShortHaulCny: number;
     setDomesticShortHaulCny: (value: number) => void;
     domesticExtras: DomesticExtra[];
@@ -85,7 +89,9 @@ export interface CostBreakdownProps {
     policyName: string;
     importPriceRub: number;
     exchangeRate: number;
-    intlFreightUsd: number;
+    intlFreightOverseasUsd: number;
+    intlFreightDomesticUsd: number;
+    insuranceRate: number;
     usdCnyRate: number;
     tonsPerContainer: number;
     dutyRate: number;

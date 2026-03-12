@@ -44,20 +44,26 @@ export interface PricingParams {
   
   // 海外段参数
   farmPriceRub?: number;
-  overseaLogistics1?: number;
-  unit1?: OverseaUnit;
-  overseaLogistics2?: number;
-  unit2?: OverseaUnit;
+  shortHaulDistanceKm?: number;
+  shortHaulPricePerKmPerContainer?: number;
   exportExtras?: OverseaExtra[];
   
   // 税收政策
   dutyRate?: number;
   vatRate?: number;
   
+  // 出口板块政策
+  exportPolicyMode?: 'no-duty' | 'with-duty' | 'planned';
+  exportDutyRate?: number;
+  exportVatRate?: number;
+  exportPlanType?: 'planned' | 'unplanned';
+  
   // 国内段参数
   importPriceRub?: number;
   importPriceUnit?: ImportPriceUnit;
-  intlFreightUsd?: number;
+  intlFreightOverseasUsd?: number;
+  intlFreightDomesticUsd?: number;
+  insuranceRate?: number;
   domesticShortHaulCny?: number;
   domesticExtras?: DomesticExtra[];
   
@@ -78,8 +84,14 @@ export interface PricingResults {
   totalTons: number;
   russianArrivalPriceRub: number;
   russianArrivalPriceCny: number;
+  exportVatRebateRub?: number;  // 出口增值税退税（RUB/t）
+  exportDutyRub?: number;  // 出口关税（RUB/t）
+  adjustedRussianArrivalPriceRub?: number;  // 调整后的海外到站预估（RUB/t）
+  adjustedRussianArrivalPriceCny?: number;  // 调整后的海外到站预估（CNY/t）
   overseaProfitRubCalculated: number;
   importValueCny: number;
+  intlFreightOverseasCnyPerTon: number;
+  intlFreightDomesticCnyPerTon: number;
   intlFreightCnyPerTon: number;
   customValueCny: number;
   dutyCny: number;

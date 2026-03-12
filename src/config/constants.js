@@ -14,10 +14,8 @@ const DEFAULT_VALUES = {
     
     // 海外段
     farmPriceRub: 35000,
-    overseaLogistics1: 1346.15,
-    unit1: 'RUB/t',
-    overseaLogistics2: 0,
-    unit2: 'RUB/t',
+    shortHaulDistanceKm: 100,  // 短驳公里数
+    shortHaulPricePerKmPerContainer: 6.73,  // 每公里每柜的价格（RUB）
     exportExtras: [
         { id: 1, name: '装车费', value: 1200, unit: 'RUB/ton' },
         { id: 2, name: '商检费', value: 300, unit: 'RUB/ton' }
@@ -27,10 +25,19 @@ const DEFAULT_VALUES = {
     dutyRate: 0,
     vatRate: 9,
     
+    // 出口板块政策
+    exportPolicyName: '常规出口税收政策',
+    exportPolicyMode: 'no-duty', // 'no-duty' | 'with-duty' | 'planned'
+    exportDutyRate: 0,
+    exportVatRate: 10,
+    exportPlanType: 'planned', // 'planned' | 'unplanned' - 计划内/计划外
+    
     // 国内段
     importPriceRub: 37000,
     importPriceUnit: 'RUB/t',
-    intlFreightUsd: 2000,
+    intlFreightOverseasUsd: 1500,  // 中欧班列运费 - 国外段 (USD/柜)
+    intlFreightDomesticUsd: 500,   // 中欧班列运费 - 国内段 (USD/柜)
+    insuranceRate: 0.003,  // 保费率（默认0.003，即0.3%）
     domesticShortHaulCny: 4680,
     domesticExtras: [
         { id: 1, name: '港杂费', value: 1500, unit: 'CNY/柜' },

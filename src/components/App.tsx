@@ -60,20 +60,79 @@ export function App() {
     
     // 海外段参数
     const [farmPriceRub, setFarmPriceRub] = useState(DEFAULT_VALUES.farmPriceRub);
-    const [overseaLogistics1, setOverseaLogistics1] = useState(DEFAULT_VALUES.overseaLogistics1);
-    const [unit1, setUnit1] = useState<'RUB/t' | 'RUB/柜'>(DEFAULT_VALUES.unit1 as 'RUB/t' | 'RUB/柜');
-    const [overseaLogistics2, setOverseaLogistics2] = useState(DEFAULT_VALUES.overseaLogistics2);
-    const [unit2, setUnit2] = useState<'RUB/t' | 'RUB/柜'>(DEFAULT_VALUES.unit2 as 'RUB/t' | 'RUB/柜');
+    const [shortHaulDistanceKm, setShortHaulDistanceKm] = useState(DEFAULT_VALUES.shortHaulDistanceKm);
+    const [shortHaulPricePerKmPerContainer, setShortHaulPricePerKmPerContainer] = useState(DEFAULT_VALUES.shortHaulPricePerKmPerContainer);
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES.exportExtras);
     
     // 税收政策
     const [dutyRate, setDutyRate] = useState(DEFAULT_VALUES.dutyRate);
     const [vatRate, setVatRate] = useState(DEFAULT_VALUES.vatRate);
     
+    // 出口板块政策
+    const [exportPolicyName, setExportPolicyName] = useState(DEFAULT_VALUES.exportPolicyName);
+    const [exportPolicyMode, setExportPolicyMode] = useState<'no-duty' | 'with-duty' | 'planned'>(DEFAULT_VALUES.exportPolicyMode as 'no-duty' | 'with-duty' | 'planned');
+    const [exportDutyRate, setExportDutyRate] = useState(DEFAULT_VALUES.exportDutyRate);
+    const [exportVatRate, setExportVatRate] = useState(DEFAULT_VALUES.exportVatRate);
+    const [exportPlanType, setExportPlanType] = useState<'planned' | 'unplanned'>(DEFAULT_VALUES.exportPlanType as 'planned' | 'unplanned');
+    const [exportSaveStatus, setExportSaveStatus] = useState<string | null>(null);
+    
+    // 从数据库加载SKU的关税政策
+    useEffect(() => {
+        const loadSkuPolicy = async () => {
+            if (!category || !subType) return;
+            
+            try {
+                const response = await fetch(`/api/sku-policies?category=${encodeURIComponent(category)}&subType=${encodeURIComponent(subType)}`);
+                
+                if (!response.ok) {
+                    console.warn('加载SKU政策失败:', response.statusText);
+                    return;
+                }
+                
+                const policy = await response.json();
+                
+                if (policy) {
+                    // 加载入口关税政策
+                    if (policy.import_duty_rate !== null && policy.import_duty_rate !== undefined) {
+                        setDutyRate(Number(policy.import_duty_rate));
+                    }
+                    if (policy.import_vat_rate !== null && policy.import_vat_rate !== undefined) {
+                        setVatRate(Number(policy.import_vat_rate));
+                    }
+                    if (policy.import_policy_name) {
+                        setPolicyName(policy.import_policy_name);
+                    }
+                    
+                    // 加载出口关税政策
+                    if (policy.export_policy_mode) {
+                        setExportPolicyMode(policy.export_policy_mode as 'no-duty' | 'with-duty' | 'planned');
+                    }
+                    if (policy.export_duty_rate !== null && policy.export_duty_rate !== undefined) {
+                        setExportDutyRate(Number(policy.export_duty_rate));
+                    }
+                    if (policy.export_vat_rate !== null && policy.export_vat_rate !== undefined) {
+                        setExportVatRate(Number(policy.export_vat_rate));
+                    }
+                    if (policy.export_plan_type) {
+                        setExportPlanType(policy.export_plan_type as 'planned' | 'unplanned');
+                    }
+                    
+                    console.log('已加载SKU关税政策:', policy);
+                }
+            } catch (error) {
+                console.error('加载SKU政策失败:', error);
+            }
+        };
+        
+        loadSkuPolicy();
+    }, [category, subType]);
+    
     // 国内段参数
     const [importPriceRub, setImportPriceRub] = useState(DEFAULT_VALUES.importPriceRub);
     const [importPriceUnit, setImportPriceUnit] = useState<'RUB/t' | 'RUB/柜'>(DEFAULT_VALUES.importPriceUnit as 'RUB/t' | 'RUB/柜');
-    const [intlFreightUsd, setIntlFreightUsd] = useState(DEFAULT_VALUES.intlFreightUsd);
+    const [intlFreightOverseasUsd, setIntlFreightOverseasUsd] = useState(DEFAULT_VALUES.intlFreightOverseasUsd);
+    const [intlFreightDomesticUsd, setIntlFreightDomesticUsd] = useState(DEFAULT_VALUES.intlFreightDomesticUsd);
+    const [insuranceRate, setInsuranceRate] = useState(DEFAULT_VALUES.insuranceRate);
     const [domesticShortHaulCny, setDomesticShortHaulCny] = useState(DEFAULT_VALUES.domesticShortHaulCny);
     const [sellingPriceCny, setSellingPriceCny] = useState(DEFAULT_VALUES.sellingPriceCny);
     const [domesticExtras, setDomesticExtras] = useState(DEFAULT_VALUES.domesticExtras);
@@ -107,18 +166,85 @@ export function App() {
         const firstSub = PRODUCT_CATEGORIES[val as keyof typeof PRODUCT_CATEGORIES][0];
         setSubType(firstSub);
         setPolicyName(`${firstSub}进口税收政策`);
+        setExportPolicyName(`${firstSub}出口税收政策`);
     };
     
-    const savePolicy = () => {
-        const policyData = {
-            timestamp: new Date().toISOString(),
-            policyName,
-            targetProduct: { category, subType },
-            rates: { dutyRate, vatRate }
-        };
-        console.log("Saving Policy with Product Association:", policyData);
-        setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
-        setTimeout(() => setSaveStatus(null), 3500);
+    // 保存入口关税政策到数据库
+    const savePolicy = async () => {
+        try {
+            const response = await fetch('/api/sku-policies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    category,
+                    subType,
+                    importDutyRate: dutyRate,
+                    importVatRate: vatRate,
+                    importPolicyName: policyName,
+                    // 同时保存出口政策（如果已设置）
+                    exportPolicyMode,
+                    exportDutyRate,
+                    exportVatRate,
+                    exportPlanType
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || '保存失败');
+            }
+
+            const result = await response.json();
+            console.log("保存入口关税政策成功:", result);
+            setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
+            setTimeout(() => setSaveStatus(null), 3500);
+        } catch (error: any) {
+            console.error("保存入口关税政策失败:", error);
+            setSaveStatus(`保存失败: ${error.message}`);
+            setTimeout(() => setSaveStatus(null), 3500);
+        }
+    };
+    
+    // 保存出口关税政策到数据库
+    const saveExportPolicy = async () => {
+        try {
+            const response = await fetch('/api/sku-policies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    category,
+                    subType,
+                    // 同时保存入口政策（如果已设置）
+                    importDutyRate: dutyRate,
+                    importVatRate: vatRate,
+                    importPolicyName: policyName,
+                    // 出口政策
+                    exportPolicyMode,
+                    exportDutyRate,
+                    exportVatRate,
+                    exportPlanType
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || '保存失败');
+            }
+
+            const result = await response.json();
+            console.log("保存出口关税政策成功:", result);
+            const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
+            setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
+            setTimeout(() => setExportSaveStatus(null), 3500);
+        } catch (error: any) {
+            console.error("保存出口关税政策失败:", error);
+            setExportSaveStatus(`保存失败: ${error.message}`);
+            setTimeout(() => setExportSaveStatus(null), 3500);
+        }
     };
     
     const addExportExtra = () => setExportExtras([...exportExtras, { id: Date.now(), name: '', value: '', unit: 'RUB/ton' }]);
@@ -137,16 +263,20 @@ export function App() {
             exchangeRate,
             usdCnyRate,
             farmPriceRub,
-            overseaLogistics1,
-            unit1: unit1 as 'RUB/t' | 'RUB/柜',
-            overseaLogistics2,
-            unit2: unit2 as 'RUB/t' | 'RUB/柜',
+            shortHaulDistanceKm,
+            shortHaulPricePerKmPerContainer,
             exportExtras,
             dutyRate,
             vatRate,
+            exportPolicyMode,
+            exportDutyRate,
+            exportVatRate,
+            exportPlanType,
             importPriceRub,
             importPriceUnit: importPriceUnit as 'RUB/t' | 'RUB/柜',
-            intlFreightUsd,
+            intlFreightOverseasUsd,
+            intlFreightDomesticUsd,
+            insuranceRate,
             domesticShortHaulCny,
             domesticExtras,
             totalContainers,
@@ -156,9 +286,9 @@ export function App() {
             sellingPriceCny
         });
     }, [
-        exchangeRate, usdCnyRate, farmPriceRub, overseaLogistics1, unit1,
-        overseaLogistics2, unit2, exportExtras, dutyRate, vatRate,
-        importPriceRub, importPriceUnit, intlFreightUsd, domesticShortHaulCny,
+        exchangeRate, usdCnyRate, farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, dutyRate, vatRate,
+        exportPolicyMode, exportDutyRate, exportVatRate, exportPlanType,
+        importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
         interestRate, sellingPriceCny
     ]);
@@ -210,16 +340,16 @@ export function App() {
                 }}
                 exchangeRate={exchangeRate}
                 usdCnyRate={usdCnyRate}
-                overseaLogistics1={overseaLogistics1}
-                unit1={unit1}
-                overseaLogistics2={overseaLogistics2}
-                unit2={unit2}
+                shortHaulDistanceKm={shortHaulDistanceKm}
+                shortHaulPricePerKmPerContainer={shortHaulPricePerKmPerContainer}
                 exportExtras={exportExtras}
                 dutyRate={dutyRate}
                 vatRate={vatRate}
                 importPriceRub={importPriceRub}
                 importPriceUnit={importPriceUnit}
-                intlFreightUsd={intlFreightUsd}
+                intlFreightOverseasUsd={intlFreightOverseasUsd}
+                intlFreightDomesticUsd={intlFreightDomesticUsd}
+                insuranceRate={insuranceRate}
                 domesticShortHaulCny={domesticShortHaulCny}
                 domesticExtras={domesticExtras}
                 tonsPerContainer={tonsPerContainer}
@@ -293,32 +423,76 @@ export function App() {
                 </div>
                 
                 {/* 计算核心参数 - 横向排列 */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
                     {/* 1. 海外段计算参数 */}
                     {typeof window !== 'undefined' && (window as any).OverseaSection && createElement(
                         (window as any).OverseaSection,
                         {
                             farmPriceRub,
                             setFarmPriceRub,
-                            overseaLogistics1,
-                            setOverseaLogistics1,
-                            unit1,
-                            setUnit1: setUnit1 as any,
-                            overseaLogistics2,
-                            setOverseaLogistics2,
-                            unit2,
-                            setUnit2: setUnit2 as any,
+                            shortHaulDistanceKm,
+                            setShortHaulDistanceKm,
+                            shortHaulPricePerKmPerContainer,
+                            setShortHaulPricePerKmPerContainer,
                             exportExtras,
                             addExportExtra,
                             deleteExportExtra,
                             updateExportExtra,
                             toggleExportExtraUnit,
-                            russianArrivalPriceRub: results.russianArrivalPriceRub,
-                            russianArrivalPriceCny: results.russianArrivalPriceCny
+                            tonsPerContainer,
+                            russianArrivalPriceRub: results.adjustedRussianArrivalPriceRub ?? results.russianArrivalPriceRub,
+                            russianArrivalPriceCny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny
                         }
                     )}
                     
-                    {/* 2. 进口税收政策 */}
+                    {/* 2. 出口板块政策 */}
+                    {typeof window !== 'undefined' && (window as any).ExportPolicySection && createElement(
+                        (window as any).ExportPolicySection,
+                        {
+                            exportPolicyName,
+                            setExportPolicyName,
+                            exportPolicyMode,
+                            setExportPolicyMode,
+                            exportDutyRate,
+                            setExportDutyRate,
+                            exportVatRate,
+                            setExportVatRate,
+                            exportPlanType,
+                            setExportPlanType,
+                            category,
+                            subType,
+                            exportSaveStatus,
+                            saveExportPolicy
+                        }
+                    )}
+                    
+                    {/* 3. 国内段计算参数 */}
+                    {typeof window !== 'undefined' && (window as any).DomesticSection && createElement(
+                        (window as any).DomesticSection,
+                        {
+                            importPriceRub,
+                            setImportPriceRub,
+                            importPriceUnit,
+                            setImportPriceUnit: setImportPriceUnit as any,
+                            intlFreightOverseasUsd,
+                            setIntlFreightOverseasUsd,
+                            intlFreightDomesticUsd,
+                            setIntlFreightDomesticUsd,
+                            insuranceRate,
+                            setInsuranceRate,
+                            domesticShortHaulCny,
+                            setDomesticShortHaulCny,
+                            domesticExtras,
+                            addDomesticExtra,
+                            deleteDomesticExtra,
+                            updateDomesticExtra,
+                            toggleDomesticExtraUnit,
+                            sellingPriceCny,
+                            setSellingPriceCny
+                        }
+                    )}
+                    
+                    {/* 4. 进口税收政策 */}
                     {typeof window !== 'undefined' && (window as any).PolicySection && createElement(
                         (window as any).PolicySection,
                         {
@@ -332,28 +506,6 @@ export function App() {
                             subType,
                             saveStatus,
                             savePolicy
-                        }
-                    )}
-                    
-                    {/* 3. 国内段计算参数 */}
-                    {typeof window !== 'undefined' && (window as any).DomesticSection && createElement(
-                        (window as any).DomesticSection,
-                        {
-                            importPriceRub,
-                            setImportPriceRub,
-                            importPriceUnit,
-                            setImportPriceUnit: setImportPriceUnit as any,
-                            intlFreightUsd,
-                            setIntlFreightUsd,
-                            domesticShortHaulCny,
-                            setDomesticShortHaulCny,
-                            domesticExtras,
-                            addDomesticExtra,
-                            deleteDomesticExtra,
-                            updateDomesticExtra,
-                            toggleDomesticExtraUnit,
-                            sellingPriceCny,
-                            setSellingPriceCny
                         }
                     )}
                 </div>
@@ -373,7 +525,9 @@ export function App() {
                         policyName={policyName}
                         importPriceRub={importPriceRub}
                         exchangeRate={exchangeRate}
-                        intlFreightUsd={intlFreightUsd}
+                        intlFreightOverseasUsd={intlFreightOverseasUsd}
+                        intlFreightDomesticUsd={intlFreightDomesticUsd}
+                        insuranceRate={insuranceRate}
                         usdCnyRate={usdCnyRate}
                         tonsPerContainer={tonsPerContainer}
                         dutyRate={dutyRate}

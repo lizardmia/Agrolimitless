@@ -13,16 +13,16 @@ interface FarmPriceReverseModalProps {
     // 当前参数（用于计算）
     exchangeRate: number;
     usdCnyRate: number;
-    overseaLogistics1: number;
-    unit1: 'RUB/t' | 'RUB/柜';
-    overseaLogistics2: number;
-    unit2: 'RUB/t' | 'RUB/柜';
+    shortHaulDistanceKm: number;
+    shortHaulPricePerKmPerContainer: number;
     exportExtras: OverseaExtra[];
     dutyRate: number;
     vatRate: number;
     importPriceRub: number;
     importPriceUnit: 'RUB/t' | 'RUB/柜';
-    intlFreightUsd: number;
+    intlFreightOverseasUsd: number;
+    intlFreightDomesticUsd: number;
+    insuranceRate: number;
     domesticShortHaulCny: number;
     domesticExtras: DomesticExtra[];
     tonsPerContainer: number;
@@ -36,10 +36,8 @@ export function FarmPriceReverseModal({
     onApply,
     exchangeRate,
     usdCnyRate,
-    overseaLogistics1,
-    unit1,
-    overseaLogistics2,
-    unit2,
+    shortHaulDistanceKm,
+    shortHaulPricePerKmPerContainer,
     exportExtras,
     dutyRate,
     vatRate,
@@ -67,10 +65,8 @@ export function FarmPriceReverseModal({
                 result = reverseFarmPriceFromArrivalPrice({
                     targetArrivalPriceCny,
                     exchangeRate,
-                    overseaLogistics1,
-                    unit1,
-                    overseaLogistics2,
-                    unit2,
+                    shortHaulDistanceKm,
+                    shortHaulPricePerKmPerContainer,
                     exportExtras,
                     tonsPerContainer
                 });
@@ -81,14 +77,15 @@ export function FarmPriceReverseModal({
                     targetBaseLandingPriceCny,
                     exchangeRate,
                     usdCnyRate,
-                    overseaLogistics1,
-                    unit1,
-                    overseaLogistics2,
-                    unit2,
+                    shortHaulDistanceKm,
+                    shortHaulPricePerKmPerContainer,
                     exportExtras,
                     dutyRate,
                     vatRate,
-                    intlFreightUsd,
+                    intlFreightOverseasUsd,
+                    intlFreightDomesticUsd,
+                    insuranceRate,
+    insuranceRate,
                     domesticShortHaulCny,
                     domesticExtras,
                     tonsPerContainer

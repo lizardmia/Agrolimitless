@@ -4,31 +4,57 @@
 function OverseaSection({
     farmPriceRub,
     setFarmPriceRub,
-    overseaLogistics1,
-    setOverseaLogistics1,
-    unit1,
-    setUnit1,
-    overseaLogistics2,
-    setOverseaLogistics2,
-    unit2,
-    setUnit2,
+    shortHaulDistanceKm,
+    setShortHaulDistanceKm,
+    shortHaulPricePerKmPerContainer,
+    setShortHaulPricePerKmPerContainer,
     exportExtras,
     addExportExtra,
     deleteExportExtra,
     updateExportExtra,
     toggleExportExtraUnit,
+    tonsPerContainer,
     russianArrivalPriceRub,
     russianArrivalPriceCny
 }) {
     const h = React.createElement;
+    const { useState, useEffect, useRef } = React;
     const { Icon } = window;
     const { formatCurrency } = window.calculations || {};
+    
+    // 物损比提示框显示状态
+    const [showLossRatioTooltip, setShowLossRatioTooltip] = useState(false);
+    const tooltipRef = useRef(null);
+    
+    // 点击外部区域关闭提示框
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (tooltipRef.current && !tooltipRef.current.contains(event.target)) {
+                setShowLossRatioTooltip(false);
+            }
+        };
+        
+        if (showLossRatioTooltip) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showLossRatioTooltip]);
     
     // 如果没有 formatCurrency，使用默认实现
     const formatCurrencyLocal = formatCurrency || ((value, options = {}) => {
         const { maximumFractionDigits = 2 } = options;
         return value.toLocaleString(undefined, { maximumFractionDigits });
     });
+    
+    // 计算短驳费（每吨，RUB/t）
+    const shortHaulFeePerContainer = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer;
+    const shortHaulFeePerTon = tonsPerContainer > 0 ? shortHaulFeePerContainer / tonsPerContainer : 0;
+    
+    // 计算物损比
+    const lossRatio = russianArrivalPriceRub > 0 ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100 : 0;
     
     return h('div', { className: "bg-orange-50/50 p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm" },
         h('div', { className: "flex justify-between items-center mb-2" },
@@ -65,44 +91,47 @@ function OverseaSection({
                     className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
                 })
             ),
-            h('div', { className: "grid grid-cols-2 gap-2" },
-                h('div', null,
-                    h('div', { className: "flex justify-between items-center mb-1" },
-                        h('label', { className: "text-[10px] text-slate-400 font-bold" }, "短驳费1"),
-                        h('button', {
-                            onClick: () => setUnit1(unit1 === 'RUB/t' ? 'RUB/柜' : 'RUB/t'),
-                            className: "text-[8px] bg-orange-100 px-1 rounded font-bold text-orange-600"
-                        }, unit1)
+            h('div', { className: "bg-white p-3 rounded-xl border border-orange-200 shadow-sm" },
+                h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, "短驳费计算"),
+                h('div', { className: "grid grid-cols-2 gap-3" },
+                    h('div', null,
+                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, "公里数"),
+                        h('input', {
+                            type: "number",
+                            value: shortHaulDistanceKm === 0 ? '' : shortHaulDistanceKm,
+                            onChange: e => {
+                                const val = e.target.value;
+                                setShortHaulDistanceKm(val === '' ? 0 : Number(val));
+                            },
+                            placeholder: "0",
+                            className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                        })
                     ),
-                    h('input', {
-                        type: "number",
-                        value: overseaLogistics1 === 0 ? '' : overseaLogistics1,
-                        onChange: e => {
-                            const val = e.target.value;
-                            setOverseaLogistics1(val === '' ? 0 : Number(val));
-                        },
-                        placeholder: "0",
-                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-xs shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
-                    })
+                    h('div', null,
+                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, "每公里每柜价格 (RUB)"),
+                        h('input', {
+                            type: "number",
+                            value: shortHaulPricePerKmPerContainer === 0 ? '' : shortHaulPricePerKmPerContainer,
+                            onChange: e => {
+                                const val = e.target.value;
+                                setShortHaulPricePerKmPerContainer(val === '' ? 0 : Number(val));
+                            },
+                            placeholder: "0",
+                            className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                        })
+                    )
                 ),
-                h('div', null,
-                    h('div', { className: "flex justify-between items-center mb-1" },
-                        h('label', { className: "text-[10px] text-slate-400 font-bold" }, "短驳费2"),
-                        h('button', {
-                            onClick: () => setUnit2(unit2 === 'RUB/t' ? 'RUB/柜' : 'RUB/t'),
-                            className: "text-[8px] bg-orange-100 px-1 rounded font-bold text-orange-600"
-                        }, unit2)
+                h('div', { className: "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100" },
+                    h('div', { className: "flex justify-between items-center" },
+                        h('span', { className: "text-[9px] text-orange-600 font-bold" }, "短驳费:"),
+                        h('span', { className: "text-sm font-black text-orange-800" },
+                            formatCurrencyLocal(shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer, { maximumFractionDigits: 2 }),
+                            " RUB/柜"
+                        )
                     ),
-                    h('input', {
-                        type: "number",
-                        value: overseaLogistics2 === 0 ? '' : overseaLogistics2,
-                        onChange: e => {
-                            const val = e.target.value;
-                            setOverseaLogistics2(val === '' ? 0 : Number(val));
-                        },
-                        placeholder: "0",
-                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-xs shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
-                    })
+                    h('p', { className: "text-[8px] text-slate-400 mt-1" },
+                        "计算公式: 公里数 × 2 × 每公里每柜价格"
+                    )
                 )
             ),
             h('div', { className: "space-y-2" },
@@ -159,8 +188,54 @@ function OverseaSection({
                     h('div', { className: "w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500 flex-shrink-0" }, 
                         h(Icon, { name: 'MapPin', size: 20 })
                     ),
-                    h('div', { className: "flex-1" },
-                        h('p', { className: "text-[10px] text-slate-400 font-medium tracking-tight mb-1" }, "海外到站预估"),
+                    h('div', { className: "flex-1 relative", ref: tooltipRef },
+                        h('div', { className: "flex items-center gap-2 mb-1" },
+                            h('p', { className: "text-[10px] text-slate-400 font-medium tracking-tight" }, "海外到站预估"),
+                            h('div', { className: "flex items-center gap-1" },
+                                h('p', { className: "text-[10px] text-orange-500 font-bold" }, "物损比"),
+                                h('button', {
+                                    onClick: (e) => {
+                                        e.stopPropagation();
+                                        setShowLossRatioTooltip(!showLossRatioTooltip);
+                                    },
+                                    className: `text-slate-400 hover:text-orange-500 transition-colors cursor-pointer flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-50 ${showLossRatioTooltip ? 'text-orange-500 bg-orange-50' : ''}`,
+                                    title: "查看物损比详情"
+                                },
+                                    h(Icon, { name: 'Info', size: 14 })
+                                )
+                            ),
+                            showLossRatioTooltip && h('div', { 
+                                className: "absolute top-6 left-0 z-50 bg-[#1a2b4b] text-white p-3 rounded-lg shadow-xl border border-orange-400 min-w-[200px]",
+                                style: { zIndex: 50 },
+                                onClick: (e) => e.stopPropagation()
+                            },
+                                h('div', { className: "text-[10px] font-bold mb-2 text-orange-300" }, "物损比"),
+                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
+                                    "短驳费（每吨）: ",
+                                    h('span', { className: "text-white font-bold" }, 
+                                        formatCurrencyLocal(shortHaulFeePerTon, { maximumFractionDigits: 2 }),
+                                        " RUB/t"
+                                    )
+                                ),
+                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
+                                    "海外到站预估: ",
+                                    h('span', { className: "text-white font-bold" },
+                                        formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 2 }),
+                                        " RUB/t"
+                                    )
+                                ),
+                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
+                                    "计算公式: 短驳费 ÷ 海外到站预估"
+                                ),
+                                h('div', { className: "text-xs font-black text-orange-300 mt-2 pt-2 border-t border-orange-500" },
+                                    "物损比: ",
+                                    h('span', { className: "text-white" },
+                                        formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
+                                        "%"
+                                    )
+                                )
+                            )
+                        ),
                         h('div', { className: "flex flex-col" },
                             h('p', { className: "text-xl font-bold leading-none text-orange-700" },
                                 formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 0 }),
@@ -169,6 +244,13 @@ function OverseaSection({
                             h('p', { className: "text-xs font-bold text-indigo-500 mt-1" },
                                 "≈ ¥ ",
                                 formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
+                            ),
+                            h('p', { className: "text-xs font-bold text-orange-600 mt-1" },
+                                "物损比: ",
+                                h('span', { className: "text-orange-700" },
+                                    formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
+                                    "%"
+                                )
                             )
                         )
                     )

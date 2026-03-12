@@ -10,10 +10,8 @@ export declare function formatCurrency(value: number, options?: CurrencyFormatOp
 export declare function reverseFarmPriceFromArrivalPrice(params: {
     targetArrivalPriceCny: number;
     exchangeRate: number;
-    overseaLogistics1: number;
-    unit1: 'RUB/t' | 'RUB/柜';
-    overseaLogistics2: number;
-    unit2: 'RUB/t' | 'RUB/柜';
+    shortHaulDistanceKm: number;
+    shortHaulPricePerKmPerContainer: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
 }): number;
@@ -22,14 +20,14 @@ export declare function reverseFarmPriceFromBasePrice(params: {
     targetBaseLandingPriceCny: number;
     exchangeRate: number;
     usdCnyRate: number;
-    overseaLogistics1: number;
-    unit1: 'RUB/t' | 'RUB/柜';
-    overseaLogistics2: number;
-    unit2: 'RUB/t' | 'RUB/柜';
+    shortHaulDistanceKm: number;
+    shortHaulPricePerKmPerContainer: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     dutyRate: number;
     vatRate: number;
-    intlFreightUsd: number;
+    intlFreightOverseasUsd: number;
+    intlFreightDomesticUsd: number;
+    insuranceRate: number;
     domesticShortHaulCny: number;
     domesticExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;

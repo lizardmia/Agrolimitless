@@ -9,8 +9,12 @@ export interface DomesticSectionProps {
     setImportPriceRub: (value: number) => void;
     importPriceUnit: 'RUB/t' | 'RUB/柜';
     setImportPriceUnit: (value: 'RUB/t' | 'RUB/柜') => void;
-    intlFreightUsd: number;
-    setIntlFreightUsd: (value: number) => void;
+    intlFreightOverseasUsd: number;
+    setIntlFreightOverseasUsd: (value: number) => void;
+    intlFreightDomesticUsd: number;
+    setIntlFreightDomesticUsd: (value: number) => void;
+    insuranceRate: number;
+    setInsuranceRate: (value: number) => void;
     domesticShortHaulCny: number;
     setDomesticShortHaulCny: (value: number) => void;
     domesticExtras: DomesticExtra[];

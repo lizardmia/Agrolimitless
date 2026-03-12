@@ -24,7 +24,7 @@ function PolicySection({
         h('div', { className: "flex justify-between items-center border-b border-blue-200 pb-2" },
             h('h4', { className: "text-sm font-black text-blue-700 flex items-center gap-2 italic uppercase tracking-wider" },
                 h(Icon, { name: 'ShieldCheck', size: 16 }),
-                " 2. 进口税收政策"
+                " 4. 进口税收政策"
             ),
             h('button', {
                 onClick: savePolicy,
