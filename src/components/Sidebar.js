@@ -28,6 +28,8 @@ function Sidebar({
     toggleExportExtraUnit,
     russianArrivalPriceRub,
     russianArrivalPriceCny,
+    exportVatRebateRub = 0,
+    exportDutyRub = 0,
     
     // 税收政策
     policyName,
@@ -56,7 +58,11 @@ function Sidebar({
     updateDomesticExtra,
     toggleDomesticExtraUnit,
     sellingPriceCny,
-    setSellingPriceCny
+    setSellingPriceCny,
+    insuranceRate,
+    setInsuranceRate,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { Icon } = window;
@@ -67,12 +73,12 @@ function Sidebar({
         h('div', { className: "bg-white p-6 rounded-3xl shadow-sm border border-slate-100" },
             h('h3', { className: "text-lg font-bold flex items-center gap-2 mb-6 text-[#1a2b4b]" },
                 h(Icon, { name: 'Settings', size: 18, className: "text-blue-500" }),
-                " 计算核心参数"
+                ` ${t('coreCalculationParams')}`
             ),
             h('div', { className: "space-y-4" },
                 // 产品选择
                 h('div', { className: "space-y-2" },
-                    h('label', { className: "text-xs text-slate-400 font-bold uppercase" }, "🏷️ 产品类目与规格"),
+                    h('label', { className: "text-xs text-slate-400 font-bold uppercase" }, `🏷️ ${t('productCategorySpec')}`),
                     h('div', { className: "grid grid-cols-2 gap-2" },
                         h('select', {
                             className: "p-3 bg-[#f8faff] border border-slate-200 rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-100",
@@ -80,7 +86,7 @@ function Sidebar({
                             onChange: (e) => handleCategoryChange(e.target.value)
                         },
                             Object.keys(categories).map(cat => 
-                                h('option', { key: cat, value: cat }, cat)
+                                h('option', { key: cat, value: cat }, t(`category_${cat}`) || cat)
                             )
                         ),
                         h('select', {
@@ -89,7 +95,7 @@ function Sidebar({
                             onChange: (e) => setSubType(e.target.value)
                         },
                             categories[category].map(item => 
-                                h('option', { key: item, value: item }, item)
+                                h('option', { key: item, value: item }, t(`subtype_${item}`) || item)
                             )
                         )
                     )
@@ -113,7 +119,11 @@ function Sidebar({
                     updateExportExtra,
                     toggleExportExtraUnit,
                     russianArrivalPriceRub,
-                    russianArrivalPriceCny
+                    russianArrivalPriceCny,
+                    exportVatRebateRub,
+                    exportDutyRub,
+                    language,
+                    t
                 }),
                 
                 // 税收政策
@@ -127,7 +137,9 @@ function Sidebar({
                     category,
                     subType,
                     saveStatus,
-                    savePolicy
+                    savePolicy,
+                    language,
+                    t
                 }),
                 
                 // 国内段参数
@@ -148,7 +160,11 @@ function Sidebar({
                     updateDomesticExtra,
                     toggleDomesticExtraUnit,
                     sellingPriceCny,
-                    setSellingPriceCny
+                    setSellingPriceCny,
+                    insuranceRate,
+                    setInsuranceRate,
+                    language,
+                    t
                 })
             )
         )

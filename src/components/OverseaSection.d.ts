@@ -22,6 +22,8 @@ export interface OverseaSectionProps {
     toggleExportExtraUnit: (id: number) => void;
     russianArrivalPriceRub: number;
     russianArrivalPriceCny: number;
+    exportVatRebateRub?: number;  // 出口增值税退税（RUB/t）
+    exportDutyRub?: number;  // 出口关税（RUB/t）
 }
 
 export declare function OverseaSection(props: OverseaSectionProps): JSX.Element;

@@ -6,7 +6,9 @@ function FinancePanel({
     setCollectionDays,
     interestRate,
     setInterestRate,
-    interestExpense
+    interestExpense,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { Icon } = window;
@@ -23,11 +25,11 @@ function FinancePanel({
                 h('div', { className: "w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner" }, 
                     h(Icon, { name: 'Clock', size: 24 })
                 ),
-                h('h4', { className: "text-sm font-black text-slate-800 uppercase tracking-widest italic border-b-2 border-indigo-100 pb-1" }, "资金财务杠杆核算")
+                h('h4', { className: "text-sm font-black text-slate-800 uppercase tracking-widest italic border-b-2 border-indigo-100 pb-1" }, t('financeLeverage'))
             ),
             h('div', { className: "space-y-5" },
                 h('div', { className: "flex justify-between items-end" },
-                    h('span', { className: "text-[10px] text-slate-400 font-black uppercase" }, "资金周转周期 (回款天数)"),
+                    h('span', { className: "text-[10px] text-slate-400 font-black uppercase" }, t('collectionCycle')),
                     h('span', { className: "text-indigo-600 text-lg font-black" },
                         collectionDays,
                         h('span', { className: "text-[10px] font-normal uppercase" }, " Days")
@@ -44,7 +46,7 @@ function FinancePanel({
             ),
             h('div', { className: "space-y-5" },
                 h('div', { className: "flex justify-between items-end" },
-                    h('span', { className: "text-[10px] text-slate-400 font-black uppercase" }, "年化利率"),
+                    h('span', { className: "text-[10px] text-slate-400 font-black uppercase" }, t('annualInterestRate')),
                     h('span', { className: "text-indigo-600 text-lg font-black" },
                         interestRate,
                         "% ",
@@ -66,7 +68,7 @@ function FinancePanel({
             h('div', { className: "absolute top-0 right-0 p-6 opacity-10 group-hover:scale-125 transition-transform" }, 
                 h(Icon, { name: 'TrendingUp', size: 120 })
             ),
-            h('p', { className: "text-[10px] opacity-70 mb-3 font-black uppercase italic tracking-[0.3em] z-10 text-center" }, "资金占用财务成本 (单吨)"),
+            h('p', { className: "text-[10px] opacity-70 mb-3 font-black uppercase italic tracking-[0.3em] z-10 text-center" }, t('financialCostPerTon')),
             h('div', { className: "flex items-baseline mb-6 z-10" },
                 h('span', { className: "text-2xl font-bold mr-1 opacity-50" }, "¥"),
                 h('span', { className: "text-6xl font-black tracking-tighter" },

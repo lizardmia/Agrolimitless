@@ -20,7 +20,9 @@ function DomesticSection({
     updateDomesticExtra,
     toggleDomesticExtraUnit,
     sellingPriceCny,
-    setSellingPriceCny
+    setSellingPriceCny,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { Icon } = window;
@@ -28,16 +30,16 @@ function DomesticSection({
     return h('div', { className: "bg-orange-50/50 p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm" },
         h('h4', { className: "text-sm font-bold text-orange-600 flex items-center gap-2 italic uppercase tracking-wider underline decoration-orange-200 decoration-2 underline-offset-4" },
             h(Icon, { name: 'Truck', size: 14 }),
-            " 3. 国内段计算参数"
+            ` 3. ${t('domesticSection')}`
         ),
         h('div', { className: "space-y-3" },
             h('div', { className: "bg-white p-3 rounded-2xl border border-orange-200 shadow-sm hover:shadow-md transition-shadow" },
                 h('div', { className: "flex justify-between items-center mb-1 text-[10px] text-orange-400 font-black uppercase tracking-wider" },
-                    h('span', null, "进口结算货值 (RUB)"),
+                    h('span', null, t('importSettlementValue')),
                     h('button', {
                         onClick: () => setImportPriceUnit(importPriceUnit === 'RUB/t' ? 'RUB/柜' : 'RUB/t'),
                         className: "bg-orange-50 px-2 py-0.5 rounded text-[9px] text-orange-500 font-bold border border-orange-100"
-                    }, importPriceUnit === 'RUB/t' ? 'Rub/t' : 'Rub/柜')
+                    }, importPriceUnit === 'RUB/t' ? t('rubPerTon') : t('rubPerContainer'))
                 ),
                 h('input', {
                     type: "number",
@@ -52,7 +54,7 @@ function DomesticSection({
             ),
             h('div', { className: "grid grid-cols-2 gap-2" },
                 h('div', null,
-                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "中欧班列运费 - 国外段 (USD/柜)"),
+                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('chinaEuropeFreightOverseas')),
                     h('input', {
                         type: "number",
                         value: intlFreightOverseasUsd === 0 ? '' : intlFreightOverseasUsd,
@@ -65,7 +67,7 @@ function DomesticSection({
                     })
                 ),
                 h('div', null,
-                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "中欧班列运费 - 国内段 (USD/柜)"),
+                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('chinaEuropeFreightDomestic')),
                     h('input', {
                         type: "number",
                         value: intlFreightDomesticUsd === 0 ? '' : intlFreightDomesticUsd,
@@ -79,7 +81,7 @@ function DomesticSection({
                 )
             ),
             h('div', null,
-                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "保费率"),
+                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('insuranceRate')),
                 h('input', {
                     type: "number",
                     step: "0.001",
@@ -91,10 +93,10 @@ function DomesticSection({
                     placeholder: "0.003",
                     className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
                 }),
-                h('p', { className: "text-[9px] text-slate-400 mt-1" }, "默认值: 0.003 (0.3%)，保费 = (进口结算货值 + 国际运费国外段) × 保费率 (CNY/t)")
+                h('p', { className: "text-[9px] text-slate-400 mt-1" }, t('insuranceRateDefault'))
             ),
             h('div', null,
-                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, "国内陆运/短驳费 (CNY/柜)"),
+                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('domesticShortHaul')),
                 h('input', {
                     type: "number",
                     value: domesticShortHaulCny === 0 ? '' : domesticShortHaulCny,
@@ -107,14 +109,14 @@ function DomesticSection({
                 })
             ),
             h('div', { className: "space-y-2 pt-2" },
-                h('p', { className: "text-[10px] text-orange-600 font-black uppercase tracking-widest border-l-2 border-orange-300 pl-2" }, "国内杂费明细 (CNY)"),
+                h('p', { className: "text-[10px] text-orange-600 font-black uppercase tracking-widest border-l-2 border-orange-300 pl-2" }, `${t('domesticExtrasDetail')} (CNY)`),
                 // 添加按钮（固定在顶部）
                 h('button', {
                     onClick: addDomesticExtra,
                     className: "w-full bg-white/60 p-2 rounded-xl border border-dashed border-orange-200 hover:border-orange-300 hover:bg-orange-50/50 transition-all shadow-sm flex items-center justify-center gap-2 text-orange-500 hover:text-orange-600"
                 },
                     h(Icon, { name: 'Plus', size: 14 }),
-                    h('span', { className: "text-[10px] font-black" }, "添加国内杂费")
+                    h('span', { className: "text-[10px] font-black" }, t('addDomesticExtra'))
                 ),
                 // 国内杂费列表（可滚动容器）
                 h('div', { 
@@ -127,7 +129,7 @@ function DomesticSection({
                                     type: "text",
                                     value: item.name,
                                     onChange: e => updateDomesticExtra(item.id, 'name', e.target.value),
-                                    placeholder: "项目",
+                                    placeholder: t('item'),
                                     className: "flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
                                 }),
                                 h('button', {
@@ -149,14 +151,14 @@ function DomesticSection({
                                 h('button', {
                                     onClick: () => toggleDomesticExtraUnit(item.id),
                                     className: `px-2 py-1.5 rounded-lg text-[10px] font-black border transition-all ${item.unit === 'CNY/柜' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50'}`
-                                }, item.unit === 'CNY/柜' ? '柜' : '吨')
+                                }, item.unit === 'CNY/柜' ? t('cnyPerContainer') : t('cnyPerTon'))
                             )
                         )
                     )
                 )
             ),
             h('div', { className: "pt-2" },
-                h('label', { className: "text-[10px] text-orange-700 font-black mb-1 block uppercase text-center tracking-widest italic" }, "🎯 目标销售单价 (CNY/t)"),
+                h('label', { className: "text-[10px] text-orange-700 font-black mb-1 block uppercase text-center tracking-widest italic" }, `🎯 ${t('targetSellingPrice')}`),
                 h('input', {
                     type: "number",
                     value: sellingPriceCny === 0 ? '' : sellingPriceCny,

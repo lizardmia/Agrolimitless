@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { reverseFarmPriceFromArrivalPrice, reverseFarmPriceFromBasePrice } from '../utils/calculations';
 import type { OverseaExtra, DomesticExtra } from '../types/index.d';
+import type { Language } from '../utils/i18n';
 
 interface FarmPriceReverseModalProps {
     isOpen: boolean;
@@ -28,6 +29,10 @@ interface FarmPriceReverseModalProps {
     tonsPerContainer: number;
     collectionDays: number;
     interestRate: number;
+    
+    // 多语言支持
+    language?: Language;
+    t?: (key: string) => string;
 }
 
 export function FarmPriceReverseModal({
@@ -43,12 +48,15 @@ export function FarmPriceReverseModal({
     vatRate,
     importPriceRub,
     importPriceUnit,
-    intlFreightUsd,
+    intlFreightOverseasUsd,
+    intlFreightDomesticUsd,
     domesticShortHaulCny,
     domesticExtras,
     tonsPerContainer,
     collectionDays,
-    interestRate
+    interestRate,
+    language = 'zh',
+    t = (key) => key
 }: FarmPriceReverseModalProps) {
     const [mode, setMode] = useState<'arrival' | 'base'>('arrival');
     const [targetArrivalPriceCny, setTargetArrivalPriceCny] = useState<number>(0);
@@ -85,7 +93,6 @@ export function FarmPriceReverseModal({
                     intlFreightOverseasUsd,
                     intlFreightDomesticUsd,
                     insuranceRate,
-    insuranceRate,
                     domesticShortHaulCny,
                     domesticExtras,
                     tonsPerContainer
@@ -108,7 +115,19 @@ export function FarmPriceReverseModal({
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-slate-200">
                     <div className="flex justify-between items-center">
-                        <h3 className="text-xl font-bold text-slate-800">倒推农场采购价</h3>
+                        <h3 className={`text-xl font-bold text-slate-800 ${language !== 'zh' ? 'leading-tight' : ''}`}>
+                            {language === 'ru' ? (
+                                <>
+                                    Обратный расчет<br />цены закупки фермы
+                                </>
+                            ) : language === 'en' ? (
+                                <>
+                                    Reverse Farm<br />Purchase Price
+                                </>
+                            ) : (
+                                t('reverseFarmPrice')
+                            )}
+                        </h3>
                         <button
                             onClick={onClose}
                             className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -121,35 +140,59 @@ export function FarmPriceReverseModal({
                 <div className="p-6 space-y-6">
                     {/* 计算模式选择 */}
                     <div>
-                        <label className="text-sm font-bold text-slate-600 mb-3 block">计算模式</label>
+                        <label className="text-sm font-bold text-slate-600 mb-3 block">{t('calculationMode')}</label>
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => {
                                     setMode('arrival');
                                     setCalculatedFarmPrice(null);
                                 }}
-                                className={`p-4 rounded-xl border-2 transition-all ${
+                                className={`p-4 rounded-xl border-2 transition-all text-left ${
                                     mode === 'arrival'
                                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                                         : 'border-slate-200 hover:border-slate-300'
                                 }`}
                             >
-                                <div className="font-bold mb-1">模式1：目标海外到站价格</div>
-                                <div className="text-xs text-slate-500">根据目标海外到站价格（CNY/t）倒推</div>
+                                <div className={`font-bold mb-1 leading-tight break-words ${language !== 'zh' ? 'text-sm' : ''}`}>
+                                    {language === 'ru' ? (
+                                        <>
+                                            Режим 1: Целевая цена<br />прибытия за границу
+                                        </>
+                                    ) : language === 'en' ? (
+                                        <>
+                                            Mode 1: Target<br />Overseas Arrival Price
+                                        </>
+                                    ) : (
+                                        t('mode1TargetArrivalPrice')
+                                    )}
+                                </div>
+                                <div className="text-xs text-slate-500 leading-tight">{t('mode1Desc')}</div>
                             </button>
                             <button
                                 onClick={() => {
                                     setMode('base');
                                     setCalculatedFarmPrice(null);
                                 }}
-                                className={`p-4 rounded-xl border-2 transition-all ${
+                                className={`p-4 rounded-xl border-2 transition-all text-left ${
                                     mode === 'base'
                                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                                         : 'border-slate-200 hover:border-slate-300'
                                 }`}
                             >
-                                <div className="font-bold mb-1">模式2：目标基础成本价</div>
-                                <div className="text-xs text-slate-500">根据目标基础成本价（CNY/t）倒推</div>
+                                <div className={`font-bold mb-1 leading-tight break-words ${language !== 'zh' ? 'text-sm' : ''}`}>
+                                    {language === 'ru' ? (
+                                        <>
+                                            Режим 2: Целевая<br />базовая стоимость
+                                        </>
+                                    ) : language === 'en' ? (
+                                        <>
+                                            Mode 2: Target<br />Base Cost Price
+                                        </>
+                                    ) : (
+                                        t('mode2TargetBasePrice')
+                                    )}
+                                </div>
+                                <div className="text-xs text-slate-500 leading-tight">{t('mode2Desc')}</div>
                             </button>
                         </div>
                     </div>
@@ -159,7 +202,7 @@ export function FarmPriceReverseModal({
                         {mode === 'arrival' ? (
                             <div>
                                 <label className="text-sm font-bold text-slate-600 mb-2 block">
-                                    目标海外到站价格 (CNY/t)
+                                    {t('targetArrivalPrice')} (CNY/t)
                                 </label>
                                 <input
                                     type="number"
@@ -173,13 +216,13 @@ export function FarmPriceReverseModal({
                                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 />
                                 <p className="text-xs text-slate-500 mt-1">
-                                    输入目标海外到站价格（人民币/吨），系统将倒推出所需的农场采购价
+                                    {t('targetArrivalPriceHint')}
                                 </p>
                             </div>
                         ) : (
                             <div>
                                 <label className="text-sm font-bold text-slate-600 mb-2 block">
-                                    目标基础成本价 (CNY/t)
+                                    {t('targetBaseLandingPrice')} (CNY/t)
                                 </label>
                                 <input
                                     type="number"
@@ -193,7 +236,7 @@ export function FarmPriceReverseModal({
                                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 />
                                 <p className="text-xs text-slate-500 mt-1">
-                                    输入目标基础成本价（不含息），系统将倒推出所需的农场采购价
+                                    {t('targetBaseLandingPriceHint')}
                                 </p>
                             </div>
                         )}
@@ -208,7 +251,7 @@ export function FarmPriceReverseModal({
                         }
                         className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
                     >
-                        计算农场采购价
+                        {t('calculateFarmPrice')}
                     </button>
                     
                     {/* 结果显示 */}
@@ -219,8 +262,8 @@ export function FarmPriceReverseModal({
                                     ✓
                                 </div>
                                 <div>
-                                    <div className="font-bold text-green-800">计算结果</div>
-                                    <div className="text-sm text-green-600">建议的农场采购价</div>
+                                    <div className="font-bold text-green-800">{t('calculationResult')}</div>
+                                    <div className="text-sm text-green-600">{t('suggestedFarmPrice')}</div>
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-green-700 mb-2">
@@ -233,14 +276,14 @@ export function FarmPriceReverseModal({
                                 onClick={handleApply}
                                 className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors"
                             >
-                                应用此价格
+                                {t('applyThisPrice')}
                             </button>
                         </div>
                     )}
                     
                     {calculatedFarmPrice === null && calculatedFarmPrice !== undefined && (
                         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-red-700 text-sm">
-                            无法计算出有效的农场采购价，请检查输入参数
+                            {t('cannotCalculateFarmPrice')}
                         </div>
                     )}
                 </div>

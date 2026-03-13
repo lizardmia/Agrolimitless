@@ -11,6 +11,8 @@ export interface ExchangeRateCardsProps {
     setExchangeRate: (value: number) => void;
     usdCnyRate: number;
     setUsdCnyRate: (value: number) => void;
+    language?: 'zh' | 'ru' | 'en';
+    t?: (key: string) => string;
 }
 
 export declare function ExchangeRateCards(props: ExchangeRateCardsProps): JSX.Element;
@@ -71,6 +73,14 @@ export interface SidebarProps {
 
 export declare function Sidebar(props: SidebarProps): JSX.Element;
 
+// Header 组件
+export interface HeaderProps {
+    language?: 'zh' | 'ru' | 'en';
+    t?: (key: string) => string;
+}
+
+export declare function Header(props: HeaderProps): JSX.Element;
+
 // ResultsPanel 组件
 export interface ResultsPanelProps {
     results: PricingResults;
@@ -78,6 +88,8 @@ export interface ResultsPanelProps {
     setTotalContainers: (value: number) => void;
     tonsPerContainer: number;
     setTonsPerContainer: (value: number) => void;
+    language?: 'zh' | 'ru' | 'en';
+    t?: (key: string) => string;
 }
 
 export declare function ResultsPanel(props: ResultsPanelProps): JSX.Element;
@@ -96,6 +108,8 @@ export interface CostBreakdownProps {
     tonsPerContainer: number;
     dutyRate: number;
     vatRate: number;
+    language?: 'zh' | 'ru' | 'en';
+    t?: (key: string) => string;
 }
 
 export declare function CostBreakdown(props: CostBreakdownProps): JSX.Element;
@@ -107,6 +121,8 @@ export interface FinancePanelProps {
     interestRate: number;
     setInterestRate: (value: number) => void;
     interestExpense: number;
+    language?: 'zh' | 'ru' | 'en';
+    t?: (key: string) => string;
 }
 
 export declare function FinancePanel(props: FinancePanelProps): JSX.Element;

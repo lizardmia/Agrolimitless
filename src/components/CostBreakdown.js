@@ -13,7 +13,9 @@ function CostBreakdown({
     usdCnyRate,
     tonsPerContainer,
     dutyRate,
-    vatRate
+    vatRate,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { formatCurrency } = window.calculations || {};
@@ -28,52 +30,52 @@ function CostBreakdown({
         // 1. 关税完税价格 (customValueCny)
         {
             type: 'group',
-            label: '关税完税价格 (customValueCny)',
+            label: `${t('customsValue')} (customValueCny)`,
             val: results.customValueCny,
             color: 'bg-purple-600',
             isTitle: true,
-            calc: '(进口结算货值 (CNY/t) + 国际运费国外段 (CNY/t)) × (1 + 保费率)',
+            calc: `(${t('importSettlementValue')} + ${t('intlFreightOverseas')}) × (1 + ${t('insuranceRate')})`,
             children: [
                 {
-                    label: '进口结算货值 (CNY/t)',
+                    label: `${t('importSettlementValue')}`,
                     val: results.importValueCny,
                     color: 'bg-orange-500',
                     calc: `${importPriceRub} / ${exchangeRate}`
                 },
                 {
-                    label: '国际运费国外段 (CNY/t)',
+                    label: `${t('intlFreightOverseas')}`,
                     val: results.intlFreightOverseasCnyPerTon,
                     color: 'bg-indigo-400',
                     calc: `(${intlFreightOverseasUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
                 },
                 {
-                    label: '保费 (CNY/t)',
+                    label: `${t('insurance')} (CNY/t)`,
                     val: (results.importValueCny + results.intlFreightOverseasCnyPerTon) * insuranceRate,
                     color: 'bg-purple-400',
-                    calc: `(进口结算货值 + 国际运费国外段) × ${insuranceRate}`
+                    calc: `(${t('importSettlementValue')} + ${t('intlFreightOverseas')}) × ${insuranceRate}`
                 }
             ]
         },
         // 2. 关税 (dutyCny)
         {
             type: 'item',
-            label: '关税 (dutyCny)',
+            label: `${t('dutyTax')} (dutyCny)`,
             val: results.dutyCny,
             color: 'bg-rose-500',
-            calc: `完税价格 × 关税税率`
+            calc: `${t('customsValue')} × ${t('dutyRate')}`
         },
         // 3. 增值税 (vatCny)
         {
             type: 'item',
-            label: '增值税 (vatCny)',
+            label: `${t('vatTax')} (vatCny)`,
             val: results.vatCny,
             color: 'bg-rose-400',
-            calc: `(完税价格 + 关税) × 增值税率`
+            calc: `(${t('customsValue')} + ${t('dutyTax')}) × ${t('vatRate')}`
         },
         // 4. 国际运费国内段 (intlFreightDomesticCnyPerTon)
         {
             type: 'item',
-            label: '国际运费国内段 (CNY/t)',
+            label: `${t('intlFreightDomestic')} (CNY/t)`,
             val: results.intlFreightDomesticCnyPerTon,
             color: 'bg-indigo-300',
             calc: `(${intlFreightDomesticUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
@@ -81,23 +83,23 @@ function CostBreakdown({
         // 5. 国内物流总费用 (domesticLogisticsCnyPerTon)
         {
             type: 'group',
-            label: '国内物流总费用 (domesticLogisticsCnyPerTon)',
+            label: `${t('domesticLogisticsTotal')} (domesticLogisticsCnyPerTon)`,
             val: results.domesticLogisticsCnyPerTon,
             color: 'bg-blue-500',
             isHighlight: true,
-            calc: '国内短驳费 + 国内杂费合计',
+            calc: `${t('domesticShortHaulFee')} + ${t('domesticExtrasTotal')}`,
             children: [
                 {
-                    label: '国内短驳费',
+                    label: t('domesticShortHaulFee'),
                     val: results.domesticLogisticsBase,
                     color: 'bg-blue-400',
-                    calc: `短驳费 / ${tonsPerContainer}`
+                    calc: `${t('shortHaulFeeResult')} / ${tonsPerContainer}`
                 },
                 {
-                    label: '国内杂费合计',
+                    label: t('domesticExtrasTotal'),
                     val: results.dynamicExtrasTotal,
                     color: 'bg-blue-300',
-                    calc: 'Σ(各杂费项目)'
+                    calc: `Σ(${t('eachExtraItem')})`
                 }
             ]
         }
@@ -107,10 +109,10 @@ function CostBreakdown({
         h('h4', { className: "text-sm font-bold text-slate-800 mb-8 flex justify-between items-center italic" },
             h('span', { className: "flex items-center gap-2" },
                 h('div', { className: "w-1.5 h-6 bg-blue-600 rounded-full" }),
-                " 审计级成本拆解 (CNY/T)"
+                ` ${t('auditCostBreakdown')} (CNY/T)`
             ),
             h('span', { className: "text-[10px] text-slate-400 font-medium tracking-tight" },
-                "绑定产品: ",
+                `${t('boundProduct')}: `,
                 h('b', { className: "text-blue-600" }, subType),
                 ` (${policyName})`
             )
@@ -190,7 +192,7 @@ function CostBreakdown({
             h('div', { className: "pt-8 mt-6 border-t-2 border-slate-100 flex justify-between items-center" },
                 h('div', { className: "flex flex-col" },
                     h('span', { className: "text-xs font-black text-slate-400 italic uppercase tracking-widest" }, "LANDING-PRICE-BASE"),
-                    h('span', { className: "text-xl font-black text-slate-800 italic" }, "落地基础成本价")
+                    h('span', { className: "text-xl font-black text-slate-800 italic" }, t('baseLandingPrice'))
                 ),
                 h('span', { className: "text-4xl font-black text-[#1a2b4b] drop-shadow-sm" },
                     "¥ ",

@@ -16,6 +16,7 @@ import { UserManagement } from './UserManagement.tsx';
 import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations.ts';
 import { DEFAULT_VALUES } from '../config/constants.js';
 import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
+import { createTranslator, type Language } from '../utils/i18n.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra } from '../types/index.d';
 
 export function App() {
@@ -57,6 +58,27 @@ export function App() {
     const [subType, setSubType] = useState(DEFAULT_VALUES.subType);
     const [policyName, setPolicyName] = useState(DEFAULT_VALUES.policyName);
     const [saveStatus, setSaveStatus] = useState<string | null>(null);
+    
+    // 农场记录相关状态
+    const [farmName, setFarmName] = useState('');
+    const [farmSaveStatus, setFarmSaveStatus] = useState<string | null>(null);
+    const [showFarmRecords, setShowFarmRecords] = useState(false);
+    const [farmRecords, setFarmRecords] = useState<any[]>([]);
+    
+    // 语言选择状态（从localStorage读取，默认中文）
+    const [language, setLanguage] = useState<Language>(() => {
+        const saved = localStorage.getItem('language');
+        return (saved === 'zh' || saved === 'ru' || saved === 'en') ? saved : 'zh';
+    });
+    const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+    
+    // 保存语言选择到localStorage
+    useEffect(() => {
+        localStorage.setItem('language', language);
+    }, [language]);
+    
+    // 创建翻译函数
+    const t = createTranslator(language);
     
     // 海外段参数
     const [farmPriceRub, setFarmPriceRub] = useState(DEFAULT_VALUES.farmPriceRub);
@@ -127,6 +149,15 @@ export function App() {
         loadSkuPolicy();
     }, [category, subType]);
     
+    // 当语言或子类型变化时，更新政策名称
+    useEffect(() => {
+        if (subType) {
+            const translatedSubType = t(`subtype_${subType}`) || subType;
+            setPolicyName(`${translatedSubType}${t('importTaxPolicy')}`);
+            setExportPolicyName(`${translatedSubType}${t('exportTaxPolicy')}`);
+        }
+    }, [language, subType, t]);
+    
     // 国内段参数
     const [importPriceRub, setImportPriceRub] = useState(DEFAULT_VALUES.importPriceRub);
     const [importPriceUnit, setImportPriceUnit] = useState<'RUB/t' | 'RUB/柜'>(DEFAULT_VALUES.importPriceUnit as 'RUB/t' | 'RUB/柜');
@@ -165,8 +196,13 @@ export function App() {
         setCategory(val as any);
         const firstSub = PRODUCT_CATEGORIES[val as keyof typeof PRODUCT_CATEGORIES][0];
         setSubType(firstSub);
-        setPolicyName(`${firstSub}进口税收政策`);
-        setExportPolicyName(`${firstSub}出口税收政策`);
+        // 政策名称会在 useEffect 中自动更新
+    };
+    
+    // 处理子类型变化，自动更新政策名称
+    const handleSubTypeChange = (val: string) => {
+        setSubType(val);
+        // 政策名称会在 useEffect 中自动更新
     };
     
     // 保存入口关税政策到数据库
@@ -198,7 +234,7 @@ export function App() {
 
             const result = await response.json();
             console.log("保存入口关税政策成功:", result);
-            setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
+            setSaveStatus(`${t('saveSuccess')} [${subType}] ${t('importTaxPolicy')}: ${t('duty')}${dutyRate}%, ${t('vat')}${vatRate}%`);
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error: any) {
             console.error("保存入口关税政策失败:", error);
@@ -208,6 +244,209 @@ export function App() {
     };
     
     // 保存出口关税政策到数据库
+    // 保存农场记录
+    const saveFarmRecord = async () => {
+        if (!farmName.trim()) {
+            setFarmSaveStatus(t('pleaseEnterFarmName'));
+            setTimeout(() => setFarmSaveStatus(null), 3000);
+            return;
+        }
+
+        const productName = `${category} > ${subType}`;
+        const recordData = {
+            id: Date.now().toString(), // 本地存储使用时间戳作为 ID
+            farm_name: farmName.trim(),
+            category,
+            sub_type: subType,
+            product_name: productName,
+            russian_arrival_price_rub: results.adjustedRussianArrivalPriceRub ?? results.russianArrivalPriceRub,
+            russian_arrival_price_cny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny,
+            gross_profit_cny: results.profitNoInterest,
+            created_at: new Date().toISOString()
+        };
+
+        try {
+            const response = await fetch('/api/farm-records', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    farmName: farmName.trim(),
+                    category,
+                    subType,
+                    productName,
+                    russianArrivalPriceRub: results.adjustedRussianArrivalPriceRub ?? results.russianArrivalPriceRub,
+                    russianArrivalPriceCny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny,
+                    grossProfitCny: results.profitNoInterest
+                }),
+            });
+
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type') || '';
+            
+            // 如果 API 不可用，使用 localStorage 作为回退
+            if (!response.ok || !contentType.includes('application/json')) {
+                const text = await response.text();
+                if (text.includes('import') || text.includes('export') || !response.ok) {
+                    console.warn('API 路由在本地开发环境中不可用，使用 localStorage 作为回退');
+                    // 使用 localStorage 保存
+                    const stored = localStorage.getItem('farm_records');
+                    const records = stored ? JSON.parse(stored) : [];
+                    records.push(recordData);
+                    localStorage.setItem('farm_records', JSON.stringify(records));
+                    setFarmSaveStatus(`已成功保存农场记录到本地: ${farmName.trim()}`);
+                    setTimeout(() => setFarmSaveStatus(null), 3000);
+                    // 不清空农场名称，保留输入
+                    return;
+                }
+                const error = await response.json();
+                throw new Error(error.error || '保存失败');
+            }
+
+            const result = await response.json();
+            console.log("保存农场记录成功:", result);
+            setFarmSaveStatus(`${t('saveSuccess')} ${t('farmRecords')}: ${farmName.trim()}`);
+            setTimeout(() => setFarmSaveStatus(null), 3000);
+        } catch (error: any) {
+            // 如果 API 调用失败，尝试使用 localStorage
+            if (error.message && (error.message.includes('JSON') || error.message.includes('fetch'))) {
+                try {
+                    const stored = localStorage.getItem('farm_records');
+                    const records = stored ? JSON.parse(stored) : [];
+                    records.push(recordData);
+                    localStorage.setItem('farm_records', JSON.stringify(records));
+                    setFarmSaveStatus(`已成功保存农场记录到本地: ${farmName.trim()}`);
+                    setTimeout(() => setFarmSaveStatus(null), 3000);
+                    // 不清空农场名称，保留输入
+                    return;
+                } catch (e) {
+                    console.error('localStorage 保存失败:', e);
+                }
+            }
+            console.error("保存农场记录失败:", error);
+            setFarmSaveStatus(`${t('saveFailed')}: ${error.message}`);
+            setTimeout(() => setFarmSaveStatus(null), 3000);
+        }
+    };
+
+    // 加载农场记录
+    const loadFarmRecords = async () => {
+        try {
+            const response = await fetch('/api/farm-records');
+            
+            // 检查响应内容类型
+            const contentType = response.headers.get('content-type') || '';
+            
+            // 如果返回的不是 JSON，可能是本地开发环境 API 不可用
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                // 如果返回的是 TypeScript/JavaScript 代码，说明 API 路由未正确配置
+                if (text.includes('import') || text.includes('export')) {
+                    console.warn('API 路由在本地开发环境中不可用，使用 localStorage 作为回退');
+                    // 使用 localStorage 作为回退
+                    const stored = localStorage.getItem('farm_records');
+                    if (stored) {
+                        try {
+                            const data = JSON.parse(stored);
+                            setFarmRecords(data || []);
+                            return;
+                        } catch (e) {
+                            console.error('解析 localStorage 数据失败:', e);
+                        }
+                    }
+                    setFarmRecords([]);
+                    return;
+                }
+                throw new Error('API 返回了非 JSON 格式的数据');
+            }
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API 响应错误:', errorText);
+                throw new Error(`加载失败: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            setFarmRecords(data || []);
+        } catch (error: any) {
+            console.error('加载农场记录失败:', error);
+            // 尝试使用 localStorage 作为回退
+            try {
+                const stored = localStorage.getItem('farm_records');
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    setFarmRecords(data || []);
+                    console.log('已从 localStorage 加载农场记录');
+                    return;
+                }
+            } catch (e) {
+                console.error('从 localStorage 加载失败:', e);
+            }
+            setFarmRecords([]);
+        }
+    };
+
+    // 打开查看记录弹窗时加载数据
+    useEffect(() => {
+        if (showFarmRecords) {
+            loadFarmRecords();
+        }
+    }, [showFarmRecords]);
+
+    // 删除农场记录
+    const deleteFarmRecord = async (id: string) => {
+        if (!confirm(t('confirmDelete'))) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/farm-records?id=${id}`, {
+                method: 'DELETE',
+            });
+
+            // 检查是否是本地开发环境
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok || !contentType.includes('application/json')) {
+                const text = await response.text();
+                if (text.includes('import') || text.includes('export') || !response.ok) {
+                    // 使用 localStorage 删除
+                    const stored = localStorage.getItem('farm_records');
+                    if (stored) {
+                        const records = JSON.parse(stored);
+                        const filtered = records.filter((r: any) => r.id !== id);
+                        localStorage.setItem('farm_records', JSON.stringify(filtered));
+                        loadFarmRecords();
+                        return;
+                    }
+                }
+                const error = await response.json();
+                throw new Error(error.error || '删除失败');
+            }
+
+            // 重新加载记录
+            loadFarmRecords();
+        } catch (error: any) {
+            // 如果 API 失败，尝试使用 localStorage
+            if (error.message && (error.message.includes('JSON') || error.message.includes('fetch'))) {
+                try {
+                    const stored = localStorage.getItem('farm_records');
+                    if (stored) {
+                        const records = JSON.parse(stored);
+                        const filtered = records.filter((r: any) => r.id !== id);
+                        localStorage.setItem('farm_records', JSON.stringify(filtered));
+                        loadFarmRecords();
+                        return;
+                    }
+                } catch (e) {
+                    console.error('localStorage 删除失败:', e);
+                }
+            }
+            console.error('删除农场记录失败:', error);
+            alert(`删除失败: ${error.message}`);
+        }
+    };
+    
     const saveExportPolicy = async () => {
         try {
             const response = await fetch('/api/sku-policies', {
@@ -355,6 +594,8 @@ export function App() {
                 tonsPerContainer={tonsPerContainer}
                 collectionDays={collectionDays}
                 interestRate={interestRate}
+                language={language}
+                t={t}
             />
             <div className="min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -366,22 +607,80 @@ export function App() {
                                 onClick={() => setShowUserManagement(!showUserManagement)}
                                 className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 transition-colors text-sm"
                             >
-                                {showUserManagement ? '← 返回' : '👤 用户管理'}
+                                {showUserManagement ? t('back') : `👤 ${t('userManagement')}`}
                             </button>
                         )}
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>当前用户: {getCurrentUser()?.username}</span>
+                            <span>{t('currentUser')}: {getCurrentUser()?.username}</span>
                             {isAdmin() && (
-                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">管理员</span>
+                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">{t('admin')}</span>
                             )}
                         </div>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition-colors text-sm"
-                    >
-                        登出
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* 语言选择按钮 */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
+                            >
+                                <span>🌐</span>
+                                <span>
+                                    {language === 'zh' ? '中文' : language === 'ru' ? 'Русский' : 'English'}
+                                </span>
+                                <span className="text-xs">▼</span>
+                            </button>
+                            {showLanguageMenu && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-10" 
+                                        onClick={() => setShowLanguageMenu(false)}
+                                    />
+                                    <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-xl border border-slate-200 py-2 z-20 min-w-[120px]">
+                                        <button
+                                            onClick={() => {
+                                                setLanguage('zh');
+                                                setShowLanguageMenu(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                                                language === 'zh' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-700'
+                                            }`}
+                                        >
+                                            中文
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setLanguage('ru');
+                                                setShowLanguageMenu(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                                                language === 'ru' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-700'
+                                            }`}
+                                        >
+                                            Русский
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setLanguage('en');
+                                                setShowLanguageMenu(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                                                language === 'en' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-700'
+                                            }`}
+                                        >
+                                            English
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <button
+                            onClick={handleLogout}
+                            className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 transition-colors text-sm"
+                        >
+                            {t('logout')}
+                        </button>
+                    </div>
                 </div>
 
                 {/* 用户管理页面 */}
@@ -389,17 +688,129 @@ export function App() {
                     <UserManagement />
                 ) : (
                     <>
-                        <Header />
+                        <Header language={language} t={t} />
                 <ExchangeRateCards
                     exchangeRate={exchangeRate}
                     setExchangeRate={setExchangeRate}
                     usdCnyRate={usdCnyRate}
                     setUsdCnyRate={setUsdCnyRate}
+                    language={language}
+                    t={t}
                 />
+                
+                {/* 农场名称输入和保存 */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                        <label className="text-xs text-slate-400 font-bold uppercase whitespace-nowrap">🏡 {t('farmName')}</label>
+                        <input
+                            type="text"
+                            value={farmName}
+                            onChange={(e) => setFarmName(e.target.value)}
+                            placeholder={t('enterFarmName')}
+                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                        />
+                        <button
+                            onClick={saveFarmRecord}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
+                        >
+                            <span>💾</span>
+                            <span>{t('saveRecord')}</span>
+                        </button>
+                        <button
+                            onClick={() => setShowFarmRecords(true)}
+                            className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                        >
+                            <span>📋</span>
+                            <span>{t('viewRecords')}</span>
+                        </button>
+                    </div>
+                    {farmSaveStatus && (
+                        <div className={`text-xs font-bold py-2 px-3 rounded-lg ${
+                            farmSaveStatus.includes(t('saveFailed')) || farmSaveStatus.includes('失败')
+                                ? 'bg-red-100 text-red-700' 
+                                : 'bg-green-100 text-green-700'
+                        }`}>
+                            {farmSaveStatus}
+                        </div>
+                    )}
+                </div>
+
+                {/* 查看农场记录弹窗 */}
+                {showFarmRecords && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                                <h3 className="text-xl font-bold text-slate-800">{t('farmRecords')}</h3>
+                                <button
+                                    onClick={() => setShowFarmRecords(false)}
+                                    className="text-slate-400 hover:text-slate-600 transition-colors text-2xl"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6">
+                                {farmRecords.length === 0 ? (
+                                    <div className="text-center text-slate-400 py-8">{t('noRecords')}</div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {farmRecords.map((record: any) => (
+                                            <div key={record.id} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="text-sm font-bold text-slate-800">🏡 {record.farm_name}</span>
+                                                            <span className="text-xs text-slate-500">•</span>
+                                                            <span className="text-sm text-slate-600">{record.product_name}</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-4 text-xs">
+                                                                    <div>
+                                                                        <span className="text-slate-500">{t('overseasArrivalEstimate')} (RUB/t): </span>
+                                                                        <span className="font-bold text-orange-600">
+                                                                            {record.russian_arrival_price_rub 
+                                                                                ? record.russian_arrival_price_rub.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                                                                                : '-'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-slate-500">{t('overseasArrivalEstimate')} (CNY/t): </span>
+                                                                        <span className="font-bold text-indigo-600">
+                                                                            {record.russian_arrival_price_cny 
+                                                                                ? `¥ ${record.russian_arrival_price_cny.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                                                                : '-'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-slate-500">{t('grossProfit')}: </span>
+                                                                        <span className="font-bold text-green-600">
+                                                                            {record.gross_profit_cny 
+                                                                                ? `¥ ${record.gross_profit_cny.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                                                                : '-'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-xs text-slate-400 mt-2">
+                                                                    {t('saveTime')}: {new Date(record.created_at).toLocaleString(language === 'zh' ? 'zh-CN' : language === 'ru' ? 'ru-RU' : 'en-US')}
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => deleteFarmRecord(record.id)}
+                                                                className="ml-4 text-red-500 hover:text-red-700 transition-colors text-sm"
+                                                            >
+                                                                {t('delete')}
+                                                            </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 
                 {/* 产品选择 */}
                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <label className="text-xs text-slate-400 font-bold uppercase block mb-3">🏷️ 产品类目与规格</label>
+                    <label className="text-xs text-slate-400 font-bold uppercase block mb-3">🏷️ {t('productCategory')}</label>
                     <div className="grid grid-cols-2 gap-2">
                         <select
                             className="p-3 bg-[#f8faff] border border-slate-200 rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-100"
@@ -407,16 +818,16 @@ export function App() {
                             onChange={(e) => handleCategoryChange(e.target.value)}
                         >
                             {Object.keys(PRODUCT_CATEGORIES).map(cat => 
-                                <option key={cat} value={cat}>{cat}</option>
+                                <option key={cat} value={cat}>{t(`category_${cat}`) || cat}</option>
                             )}
                         </select>
                         <select
                             className="p-3 bg-blue-600 text-white border-none rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-300"
                             value={subType}
-                            onChange={(e) => setSubType(e.target.value)}
+                            onChange={(e) => handleSubTypeChange(e.target.value)}
                         >
                             {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => 
-                                <option key={item} value={item}>{item}</option>
+                                <option key={item} value={item}>{t(`subtype_${item}`) || item}</option>
                             )}
                         </select>
                     </div>
@@ -441,7 +852,11 @@ export function App() {
                             toggleExportExtraUnit,
                             tonsPerContainer,
                             russianArrivalPriceRub: results.adjustedRussianArrivalPriceRub ?? results.russianArrivalPriceRub,
-                            russianArrivalPriceCny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny
+                            russianArrivalPriceCny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny,
+                            exportVatRebateRub: results.exportVatRebateRub ?? 0,
+                            exportDutyRub: results.exportDutyRub ?? 0,
+                            language,
+                            t
                         }
                     )}
                     
@@ -462,7 +877,9 @@ export function App() {
                             category,
                             subType,
                             exportSaveStatus,
-                            saveExportPolicy
+                            saveExportPolicy,
+                            language,
+                            t
                         }
                     )}
                     
@@ -488,7 +905,9 @@ export function App() {
                             updateDomesticExtra,
                             toggleDomesticExtraUnit,
                             sellingPriceCny,
-                            setSellingPriceCny
+                            setSellingPriceCny,
+                            language,
+                            t
                         }
                     )}
                     
@@ -505,7 +924,9 @@ export function App() {
                             category,
                             subType,
                             saveStatus,
-                            savePolicy
+                            savePolicy,
+                            language,
+                            t
                         }
                     )}
                 </div>
@@ -539,6 +960,8 @@ export function App() {
                         interestRate={interestRate}
                         setInterestRate={setInterestRate}
                         interestExpense={results.interestExpense}
+                        language={language}
+                        t={t}
                     />
                 </div>
                     </>

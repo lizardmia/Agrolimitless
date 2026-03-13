@@ -5,7 +5,9 @@ function ExchangeRateCards({
     exchangeRate, 
     setExchangeRate, 
     usdCnyRate, 
-    setUsdCnyRate
+    setUsdCnyRate,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { Icon } = window;
@@ -24,7 +26,7 @@ function ExchangeRateCards({
                 h(Icon, { name: 'Globe', size: 24 })
             ),
             h('div', null,
-                h('p', { className: "text-xs text-blue-400 font-medium tracking-tight uppercase" }, "汇率 (CNY/RUB)"),
+                h('p', { className: "text-xs text-blue-400 font-medium tracking-tight uppercase" }, `${t('exchangeRate')} (CNY/RUB)`),
                 h('input', {
                     type: "number",
                     value: exchangeRate === 0 ? '' : exchangeRate,
@@ -44,7 +46,7 @@ function ExchangeRateCards({
                 h(Icon, { name: 'TrendingUp', size: 24 })
             ),
             h('div', null,
-                h('p', { className: "text-xs text-slate-400 font-medium tracking-tight uppercase" }, "汇率 (USD/CNY)"),
+                h('p', { className: "text-xs text-slate-400 font-medium tracking-tight uppercase" }, `${t('exchangeRate')} (USD/CNY)`),
                 h('input', {
                     type: "number",
                     value: usdCnyRate === 0 ? '' : usdCnyRate,

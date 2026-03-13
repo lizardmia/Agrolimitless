@@ -15,7 +15,11 @@ function OverseaSection({
     toggleExportExtraUnit,
     tonsPerContainer,
     russianArrivalPriceRub,
-    russianArrivalPriceCny
+    russianArrivalPriceCny,
+    exportVatRebateRub = 0,
+    exportDutyRub = 0,
+    language = 'zh',
+    t = (key) => key
 }) {
     const h = React.createElement;
     const { useState, useEffect, useRef } = React;
@@ -60,7 +64,7 @@ function OverseaSection({
         h('div', { className: "flex justify-between items-center mb-2" },
             h('h4', { className: "text-sm font-bold text-orange-600 flex items-center gap-2 italic uppercase tracking-wider underline decoration-orange-200 decoration-2 underline-offset-4" },
                 h(Icon, { name: 'Globe', size: 14 }),
-                " 1. 海外段计算参数"
+                ` 1. ${t('overseaSection')}`
             ),
             h('button', {
                 onClick: () => {
@@ -70,16 +74,24 @@ function OverseaSection({
                         console.warn('openFarmPriceReverseModal 函数未找到');
                     }
                 },
-                className: "bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-2 whitespace-nowrap",
-                title: "倒推农场采购价"
+                className: `bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${language === 'zh' ? 'whitespace-nowrap' : 'whitespace-normal leading-tight'}`,
+                title: t('reverseFarmPrice')
             },
                 h(Icon, { name: 'Calculator', size: 14 }),
-                "倒推采购价"
+                language === 'ru' ? [
+                    'Обратный',
+                    h('br', { key: 'br' }),
+                    'расчет'
+                ] : language === 'en' ? [
+                    'Reverse',
+                    h('br', { key: 'br' }),
+                    'Purchase Price'
+                ] : t('reversePurchasePrice')
             )
         ),
         h('div', { className: "space-y-2" },
             h('div', null,
-                h('label', { className: "text-[10px] text-slate-500 font-bold uppercase tracking-tighter" }, "农场采购价 (RUB/t)"),
+                h('label', { className: "text-[10px] text-slate-500 font-bold uppercase tracking-tighter" }, `${t('farmPurchasePrice')} (RUB/t)`),
                 h('input', {
                     type: "number",
                     value: farmPriceRub === 0 ? '' : farmPriceRub,
@@ -92,10 +104,10 @@ function OverseaSection({
                 })
             ),
             h('div', { className: "bg-white p-3 rounded-xl border border-orange-200 shadow-sm" },
-                h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, "短驳费计算"),
+                h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, t('shortHaulFee')),
                 h('div', { className: "grid grid-cols-2 gap-3" },
                     h('div', null,
-                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, "公里数"),
+                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('distanceKm')),
                         h('input', {
                             type: "number",
                             value: shortHaulDistanceKm === 0 ? '' : shortHaulDistanceKm,
@@ -108,7 +120,7 @@ function OverseaSection({
                         })
                     ),
                     h('div', null,
-                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, "每公里每柜价格 (RUB)"),
+                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('pricePerKmPerContainer')),
                         h('input', {
                             type: "number",
                             value: shortHaulPricePerKmPerContainer === 0 ? '' : shortHaulPricePerKmPerContainer,
@@ -123,14 +135,14 @@ function OverseaSection({
                 ),
                 h('div', { className: "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100" },
                     h('div', { className: "flex justify-between items-center" },
-                        h('span', { className: "text-[9px] text-orange-600 font-bold" }, "短驳费:"),
+                        h('span', { className: "text-[9px] text-orange-600 font-bold" }, `${t('shortHaulFeeResult')}:`),
                         h('span', { className: "text-sm font-black text-orange-800" },
                             formatCurrencyLocal(shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer, { maximumFractionDigits: 2 }),
-                            " RUB/柜"
+                            ` ${t('rubPerContainer')}`
                         )
                     ),
                     h('p', { className: "text-[8px] text-slate-400 mt-1" },
-                        "计算公式: 公里数 × 2 × 每公里每柜价格"
+                        `${t('calculationFormula')}: ${t('distanceKm')} × 2 × ${t('pricePerKmPerContainer')}`
                     )
                 )
             ),
@@ -176,7 +188,7 @@ function OverseaSection({
                                 h('button', {
                                     onClick: () => toggleExportExtraUnit(item.id),
                                     className: `px-2 py-1.5 rounded-lg text-[10px] font-black border transition-all ${item.unit === 'RUB/container' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50'}`
-                                }, item.unit === 'RUB/container' ? 'RUB/柜' : 'RUB/t')
+                                }, item.unit === 'RUB/container' ? t('rubPerContainer') : t('rubPerTon'))
                             )
                         )
                     )
@@ -190,16 +202,16 @@ function OverseaSection({
                     ),
                     h('div', { className: "flex-1 relative", ref: tooltipRef },
                         h('div', { className: "flex items-center gap-2 mb-1" },
-                            h('p', { className: "text-[10px] text-slate-400 font-medium tracking-tight" }, "海外到站预估"),
+                            h('p', { className: "text-[10px] text-slate-400 font-medium tracking-tight" }, t('overseasArrivalEstimate')),
                             h('div', { className: "flex items-center gap-1" },
-                                h('p', { className: "text-[10px] text-orange-500 font-bold" }, "物损比"),
+                                h('p', { className: "text-[10px] text-orange-500 font-bold" }, t('lossRatio')),
                                 h('button', {
                                     onClick: (e) => {
                                         e.stopPropagation();
                                         setShowLossRatioTooltip(!showLossRatioTooltip);
                                     },
                                     className: `text-slate-400 hover:text-orange-500 transition-colors cursor-pointer flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-50 ${showLossRatioTooltip ? 'text-orange-500 bg-orange-50' : ''}`,
-                                    title: "查看物损比详情"
+                                    title: t('viewLossRatioDetails')
                                 },
                                     h(Icon, { name: 'Info', size: 14 })
                                 )
@@ -209,26 +221,26 @@ function OverseaSection({
                                 style: { zIndex: 50 },
                                 onClick: (e) => e.stopPropagation()
                             },
-                                h('div', { className: "text-[10px] font-bold mb-2 text-orange-300" }, "物损比"),
+                                h('div', { className: "text-[10px] font-bold mb-2 text-orange-300" }, t('lossRatio')),
                                 h('div', { className: "text-[9px] text-slate-300 mb-1" },
-                                    "短驳费（每吨）: ",
+                                    `${t('shortHaulFeePerTon')}: `,
                                     h('span', { className: "text-white font-bold" }, 
                                         formatCurrencyLocal(shortHaulFeePerTon, { maximumFractionDigits: 2 }),
-                                        " RUB/t"
+                                        ` ${t('rubPerTon')}`
                                     )
                                 ),
                                 h('div', { className: "text-[9px] text-slate-300 mb-1" },
-                                    "海外到站预估: ",
+                                    `${t('overseasArrivalEstimate')}: `,
                                     h('span', { className: "text-white font-bold" },
                                         formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 2 }),
-                                        " RUB/t"
+                                        ` ${t('rubPerTon')}`
                                     )
                                 ),
                                 h('div', { className: "text-[9px] text-slate-300 mb-1" },
-                                    "计算公式: 短驳费 ÷ 海外到站预估"
+                                    t('lossRatioFormula')
                                 ),
                                 h('div', { className: "text-xs font-black text-orange-300 mt-2 pt-2 border-t border-orange-500" },
-                                    "物损比: ",
+                                    `${t('lossRatio')}: `,
                                     h('span', { className: "text-white" },
                                         formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
                                         "%"
@@ -239,18 +251,60 @@ function OverseaSection({
                         h('div', { className: "flex flex-col" },
                             h('p', { className: "text-xl font-bold leading-none text-orange-700" },
                                 formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 0 }),
-                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, " RUB/t")
+                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
                             ),
                             h('p', { className: "text-xs font-bold text-indigo-500 mt-1" },
                                 "≈ ¥ ",
                                 formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
                             ),
                             h('p', { className: "text-xs font-bold text-orange-600 mt-1" },
-                                "物损比: ",
+                                `${t('lossRatio')}: `,
                                 h('span', { className: "text-orange-700" },
                                     formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
                                     "%"
                                 )
+                            )
+                        )
+                    )
+                ),
+                // 增值税、关税信息
+                h('div', { className: "mt-3 pt-3 border-t border-slate-200 space-y-2" },
+                    // 增值税
+                    h('div', { className: "flex justify-between items-center" },
+                        h('div', { className: "flex-1" },
+                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('vatTax')),
+                            h('p', { className: "text-[8px] text-slate-400" }, t('vatFormula'))
+                        ),
+                        h('div', { className: "text-right" },
+                            h('p', { className: "text-sm font-bold text-green-600" },
+                                formatCurrencyLocal(exportVatRebateRub, { maximumFractionDigits: 2 }),
+                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
+                            )
+                        )
+                    ),
+                    // 关税
+                    h('div', { className: "flex justify-between items-center" },
+                        h('div', { className: "flex-1" },
+                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('dutyTax')),
+                            h('p', { className: "text-[8px] text-slate-400" }, t('dutyFormula'))
+                        ),
+                        h('div', { className: "text-right" },
+                            h('p', { className: "text-sm font-bold text-blue-600" },
+                                formatCurrencyLocal(exportDutyRub, { maximumFractionDigits: 2 }),
+                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
+                            )
+                        )
+                    ),
+                    // 增值税减去关税
+                    h('div', { className: "flex justify-between items-center pt-2 border-t border-slate-200" },
+                        h('div', { className: "flex-1" },
+                            h('p', { className: "text-[9px] text-slate-600 font-bold mb-1" }, t('vatMinusDuty')),
+                            h('p', { className: "text-[8px] text-slate-400" }, t('vatMinusDutyFormula'))
+                        ),
+                        h('div', { className: "text-right" },
+                            h('p', { className: "text-sm font-black text-purple-600" },
+                                formatCurrencyLocal(exportVatRebateRub - exportDutyRub, { maximumFractionDigits: 2 }),
+                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
                             )
                         )
                     )
