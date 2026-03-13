@@ -83,7 +83,7 @@ function ResultsPanel({ results, totalContainers, setTotalContainers, tonsPerCon
                 )
             ),
             h('div', { className: "text-center md:text-right border-l-0 md:border-l border-blue-500/50 pl-0 md:pl-10" },
-                h('p', { className: "text-[10px] text-blue-100 mb-2 font-black uppercase tracking-[0.2em] italic" }, `${t('totalCapitalOccupied')} (CNY)`),
+                h('p', { className: "text-[10px] text-blue-100 mb-2 font-black uppercase tracking-[0.2em] italic" }, `${t('totalCapitalOccupied')} (${t('cny')})`),
                 h('span', { className: "text-5xl font-black tabular-nums drop-shadow-lg" },
                     "¥ ",
                     formatCurrencyLocal(results.totalCapital, { maximumFractionDigits: 0 })

@@ -851,6 +851,11 @@ const translations: Translations = {
         zh: 'CNY/柜',
         ru: 'CNY/контейнер',
         en: 'CNY/container'
+    },
+    'cny': {
+        zh: 'CNY',
+        ru: 'CNY',
+        en: 'CNY'
     }
 };
 
@@ -870,5 +875,12 @@ export function t(key: string, language: Language = 'zh'): string {
  * 创建翻译函数（用于组件内使用）
  */
 export function createTranslator(language: Language) {
-    return (key: string) => t(key, language);
+    return (key: string) => {
+        const result = t(key, language);
+        // 调试：如果返回键名本身，说明翻译失败
+        if (result === key && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+            console.warn(`[i18n] 翻译键未找到: "${key}", 语言: "${language}"`);
+        }
+        return result;
+    };
 }

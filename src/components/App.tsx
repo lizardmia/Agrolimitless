@@ -77,8 +77,19 @@ export function App() {
         localStorage.setItem('language', language);
     }, [language]);
     
-    // 创建翻译函数
-    const t = createTranslator(language);
+    // 创建翻译函数（每次 language 改变时重新创建）
+    const t = useMemo(() => createTranslator(language), [language]);
+    
+    // 调试：验证 t 函数是否正确工作
+    useEffect(() => {
+        const testKey = 'customsValue';
+        const testResult = t(testKey);
+        if (testResult === testKey) {
+            console.error(`[App] ❌ 翻译函数有问题: key="${testKey}", language="${language}", 返回键名本身`);
+        } else {
+            console.log(`[App] ✅ 翻译函数正常: key="${testKey}", language="${language}", result="${testResult}"`);
+        }
+    }, [language, t]);
     
     // 海外段参数
     const [farmPriceRub, setFarmPriceRub] = useState(DEFAULT_VALUES.farmPriceRub);
@@ -939,6 +950,8 @@ export function App() {
                         setTotalContainers={setTotalContainers}
                         tonsPerContainer={tonsPerContainer}
                         setTonsPerContainer={setTonsPerContainer}
+                        language={language}
+                        t={t}
                     />
                     <CostBreakdown
                         results={results}
@@ -953,6 +966,8 @@ export function App() {
                         tonsPerContainer={tonsPerContainer}
                         dutyRate={dutyRate}
                         vatRate={vatRate}
+                        language={language}
+                        t={t}
                     />
                     <FinancePanel
                         collectionDays={collectionDays}

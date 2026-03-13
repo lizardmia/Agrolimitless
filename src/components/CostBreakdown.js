@@ -18,6 +18,35 @@ function CostBreakdown({
     t = (key) => key
 }) {
     const h = React.createElement;
+    
+    // 确保 t 函数存在且正确工作
+    // 检查 t 函数是否是默认的回退函数（返回键名本身）
+    const isDefaultFallback = !t || typeof t !== 'function' || 
+        (t.toString().includes('=> key') && !t.toString().includes('translations'));
+    
+    if (isDefaultFallback) {
+        console.error(`[CostBreakdown] ❌ t 函数是默认回退函数或未传递: ${typeof t}, language: ${language}`);
+        // 尝试从全局获取翻译函数（CDN 模式）
+        if (typeof window !== 'undefined' && window.i18n && typeof window.i18n.createTranslator === 'function') {
+            t = window.i18n.createTranslator(language);
+            console.log(`[CostBreakdown] ✅ 从 window.i18n 创建翻译函数`);
+        } else {
+            // 最后的回退：直接返回键名
+            console.warn(`[CostBreakdown] ⚠️ 无法创建翻译函数，使用回退`);
+            t = (key) => key;
+        }
+    }
+    
+    // 验证 t 函数是否正确工作
+    const testKey = 'customsValue';
+    const testResult = t(testKey);
+    if (testResult === testKey) {
+        console.error(`[CostBreakdown] ❌ 翻译失败！key="${testKey}", language="${language}", 返回键名本身`);
+        console.error(`[CostBreakdown] t函数类型: ${typeof t}`);
+        console.error(`[CostBreakdown] t函数源码:`, t.toString().substring(0, 200));
+    } else {
+        console.log(`[CostBreakdown] ✅ 翻译成功: key="${testKey}", language="${language}", result="${testResult}"`);
+    }
     const { formatCurrency } = window.calculations || {};
     
     const formatCurrencyLocal = formatCurrency || ((value, options = {}) => {
@@ -30,14 +59,14 @@ function CostBreakdown({
         // 1. 关税完税价格 (customValueCny)
         {
             type: 'group',
-            label: `${t('customsValue')} (customValueCny)`,
+            label: t('customsValue'),
             val: results.customValueCny,
             color: 'bg-purple-600',
             isTitle: true,
-            calc: `(${t('importSettlementValue')} + ${t('intlFreightOverseas')}) × (1 + ${t('insuranceRate')})`,
+            calc: `(${t('importSettlementValue')} + ${t('intlFreightOverseas')}) × (1 + ${insuranceRate})`,
             children: [
                 {
-                    label: `${t('importSettlementValue')}`,
+                    label: `${t('importSettlementValue').replace(/ \(RUB\)/g, '').replace(/ \(руб\)/gi, '')} (${t('cnyPerTon')})`,
                     val: results.importValueCny,
                     color: 'bg-orange-500',
                     calc: `${importPriceRub} / ${exchangeRate}`
@@ -49,7 +78,7 @@ function CostBreakdown({
                     calc: `(${intlFreightOverseasUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
                 },
                 {
-                    label: `${t('insurance')} (CNY/t)`,
+                    label: `${t('insurance')} (${t('cnyPerTon')})`,
                     val: (results.importValueCny + results.intlFreightOverseasCnyPerTon) * insuranceRate,
                     color: 'bg-purple-400',
                     calc: `(${t('importSettlementValue')} + ${t('intlFreightOverseas')}) × ${insuranceRate}`
@@ -59,23 +88,23 @@ function CostBreakdown({
         // 2. 关税 (dutyCny)
         {
             type: 'item',
-            label: `${t('dutyTax')} (dutyCny)`,
+            label: t('dutyTax'),
             val: results.dutyCny,
             color: 'bg-rose-500',
-            calc: `${t('customsValue')} × ${t('dutyRate')}`
+            calc: `${t('customsValue')} × ${(dutyRate * 100).toFixed(1)}%`
         },
         // 3. 增值税 (vatCny)
         {
             type: 'item',
-            label: `${t('vatTax')} (vatCny)`,
+            label: t('vatTax'),
             val: results.vatCny,
             color: 'bg-rose-400',
-            calc: `(${t('customsValue')} + ${t('dutyTax')}) × ${t('vatRate')}`
+            calc: `(${t('customsValue')} + ${t('dutyTax')}) × ${(vatRate * 100).toFixed(1)}%`
         },
         // 4. 国际运费国内段 (intlFreightDomesticCnyPerTon)
         {
             type: 'item',
-            label: `${t('intlFreightDomestic')} (CNY/t)`,
+            label: `${t('intlFreightDomestic')} (${t('cnyPerTon')})`,
             val: results.intlFreightDomesticCnyPerTon,
             color: 'bg-indigo-300',
             calc: `(${intlFreightDomesticUsd} * ${usdCnyRate}) / ${tonsPerContainer}`
@@ -83,7 +112,7 @@ function CostBreakdown({
         // 5. 国内物流总费用 (domesticLogisticsCnyPerTon)
         {
             type: 'group',
-            label: `${t('domesticLogisticsTotal')} (domesticLogisticsCnyPerTon)`,
+            label: t('domesticLogisticsTotal'),
             val: results.domesticLogisticsCnyPerTon,
             color: 'bg-blue-500',
             isHighlight: true,
@@ -109,11 +138,11 @@ function CostBreakdown({
         h('h4', { className: "text-sm font-bold text-slate-800 mb-8 flex justify-between items-center italic" },
             h('span', { className: "flex items-center gap-2" },
                 h('div', { className: "w-1.5 h-6 bg-blue-600 rounded-full" }),
-                ` ${t('auditCostBreakdown')} (CNY/T)`
+                ` ${t('auditCostBreakdown')} (${t('cnyPerTon')})`
             ),
             h('span', { className: "text-[10px] text-slate-400 font-medium tracking-tight" },
                 `${t('boundProduct')}: `,
-                h('b', { className: "text-blue-600" }, subType),
+                h('b', { className: "text-blue-600" }, t(`subtype_${subType}`) || subType),
                 ` (${policyName})`
             )
         ),
@@ -191,7 +220,7 @@ function CostBreakdown({
             }),
             h('div', { className: "pt-8 mt-6 border-t-2 border-slate-100 flex justify-between items-center" },
                 h('div', { className: "flex flex-col" },
-                    h('span', { className: "text-xs font-black text-slate-400 italic uppercase tracking-widest" }, "LANDING-PRICE-BASE"),
+                    h('span', { className: "text-xs font-black text-slate-400 italic uppercase tracking-widest" }, t('baseLandingPrice').toUpperCase().replace(/\s/g, '-')),
                     h('span', { className: "text-xl font-black text-slate-800 italic" }, t('baseLandingPrice'))
                 ),
                 h('span', { className: "text-4xl font-black text-[#1a2b4b] drop-shadow-sm" },

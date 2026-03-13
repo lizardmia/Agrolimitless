@@ -306,7 +306,8 @@ function App() {
             'rubPerTon': { zh: 'RUB/t', ru: 'RUB/т', en: 'RUB/t' },
             'rubPerContainer': { zh: 'RUB/柜', ru: 'RUB/контейнер', en: 'RUB/container' },
             'cnyPerTon': { zh: 'CNY/t', ru: 'CNY/т', en: 'CNY/t' },
-            'cnyPerContainer': { zh: 'CNY/柜', ru: 'CNY/контейнер', en: 'CNY/container' }
+            'cnyPerContainer': { zh: 'CNY/柜', ru: 'CNY/контейнер', en: 'CNY/container' },
+            'cny': { zh: 'CNY', ru: 'CNY', en: 'CNY' }
         };
         const trans = translations[key];
         return trans ? trans[language] || trans.zh : key;

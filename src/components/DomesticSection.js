@@ -109,7 +109,7 @@ function DomesticSection({
                 })
             ),
             h('div', { className: "space-y-2 pt-2" },
-                h('p', { className: "text-[10px] text-orange-600 font-black uppercase tracking-widest border-l-2 border-orange-300 pl-2" }, `${t('domesticExtrasDetail')} (CNY)`),
+                h('p', { className: "text-[10px] text-orange-600 font-black uppercase tracking-widest border-l-2 border-orange-300 pl-2" }, `${t('domesticExtrasDetail')} (${t('cny')})`),
                 // 添加按钮（固定在顶部）
                 h('button', {
                     onClick: addDomesticExtra,
