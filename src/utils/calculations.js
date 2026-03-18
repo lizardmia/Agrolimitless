@@ -48,7 +48,12 @@ function calculatePricing(params) {
         interestRate = 6.0,
         
         // 销售价格
-        sellingPriceCny = 5500
+        sellingPriceCny = 5500,
+        
+        // 海外段-期望盈利与关税计算选项
+        expectedProfitPercent = 0,
+        includeShortHaulInDuty = false,
+        exportPriceRub = 0
     } = params;
 
     const totalTons = totalContainers * tonsPerContainer;
@@ -69,37 +74,48 @@ function calculatePricing(params) {
     // 基础海外到站预估（未调整）
     const baseRussianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
     
+    // === 先算建议出口价（供后续关税计算使用）===
+    const suggestedExportPriceBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+    const m = expectedProfitPercent / 100;
+    const r = exportDutyRate / 100;
+    const denominator = 1 - r * (1 + m);
+    let suggestedExportPriceRub = 0;
+    if (expectedProfitPercent > 0 && denominator > 0) {
+        if (includeShortHaulInDuty) {
+            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / denominator;
+        } else {
+            const numerator = (suggestedExportPriceBase - shortHaulFeePerTon * r) * (1 + m);
+            suggestedExportPriceRub = numerator / denominator;
+        }
+    }
+    // 实际用于关税计算的出口价
+    const effectiveExportPriceForDuty = exportPriceRub > 0
+        ? exportPriceRub
+        : (suggestedExportPriceRub > 0 ? suggestedExportPriceRub : 0);
+
     // === 出口板块政策计算 ===
-    let exportVatRebateRub = 0;  // 出口增值税退税（RUB/t）
-    let exportDutyRub = 0;  // 出口关税（RUB/t）
+    let exportVatRebateRub = 0;
+    let exportDutyRub = 0;
     let adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
     
     if (exportPolicyMode === 'no-duty') {
-        // 规则1：没有关税，只有增值税退税
-        // 采购价含税 = farmPriceRub
-        // 增值税退税 = farmPriceRub / (1 + exportVatRate/100) * (exportVatRate/100)
         if (exportVatRate > 0) {
             const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
             exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
             adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub - exportVatRebateRub;
         }
     } else if (exportPolicyMode === 'with-duty') {
-        // 规则2：有关税
-        // 增值税退税 = farmPriceRub / (1 + exportVatRate/100) * (exportVatRate/100)
         if (exportVatRate > 0) {
             const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
             exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
         }
-        // 关税 = 进口结算货值 * 关税税率
-        const normalizedImportPriceRubPerTon = importPriceUnit === 'RUB/t' 
-            ? importPriceRub 
-            : importPriceRub / tpc;
-        exportDutyRub = normalizedImportPriceRubPerTon * (exportDutyRate / 100);
-        // 海外到站预估 = 原值 - 增值税退税 + 关税
+        // 关税 = 建议出口价格 × 关税税率
+        const dutyBase = includeShortHaulInDuty
+            ? effectiveExportPriceForDuty
+            : effectiveExportPriceForDuty - shortHaulFeePerTon;
+        exportDutyRub = Math.max(0, dutyBase) * (exportDutyRate / 100);
         adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub - exportVatRebateRub + exportDutyRub;
     } else if (exportPolicyMode === 'planned') {
-        // 规则3：计划内/计划外（预留）
-        // 暂时不调整，保持原值
         adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
     }
     
@@ -114,6 +130,22 @@ function calculatePricing(params) {
     
     // 海外段利润
     const overseaProfitRubCalculated = normalizedImportPriceRubPerTon - russianArrivalPriceRub;
+    
+    const suggestedExportDutyRub = suggestedExportPriceRub > 0
+        ? (includeShortHaulInDuty
+            ? suggestedExportPriceRub * r
+            : (suggestedExportPriceRub - shortHaulFeePerTon) * r)
+        : 0;
+    const suggestedFarmPriceRub = 0;
+
+    // === 关税计算基础价 ===
+    const effectiveDutyBaseRub = (() => {
+        let base = exportPriceRub > 0 ? exportPriceRub : normalizedImportPriceRubPerTon;
+        if (includeShortHaulInDuty) {
+            base = base + shortHaulFeePerTon;
+        }
+        return base;
+    })();
     
     // === 国内段计算 ===
     // 进口结算货值(人民币)
@@ -159,11 +191,16 @@ function calculatePricing(params) {
         totalTons,
         russianArrivalPriceRub,
         russianArrivalPriceCny,
+        baseRussianArrivalPriceRub,
         exportVatRebateRub,
         exportDutyRub,
         adjustedRussianArrivalPriceRub,
         adjustedRussianArrivalPriceCny,
         overseaProfitRubCalculated,
+        suggestedFarmPriceRub,
+        suggestedExportPriceRub,
+        suggestedExportDutyRub,
+        effectiveDutyBaseRub,
         importValueCny,
         intlFreightOverseasCnyPerTon,
         intlFreightDomesticCnyPerTon,

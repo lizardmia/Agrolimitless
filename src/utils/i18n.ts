@@ -87,6 +87,16 @@ const translations: Translations = {
         ru: 'Оценка прибытия за границу',
         en: 'Overseas Arrival Estimate'
     },
+    'overseasArrivalWithVat': {
+        zh: '含增值税退税',
+        ru: 'С возвратом НДС',
+        en: 'With VAT Rebate'
+    },
+    'overseasArrivalWithoutVat': {
+        zh: '不含增值税退税 (原价)',
+        ru: 'Без возврата НДС (исходная)',
+        en: 'Without VAT Rebate (Base)'
+    },
     'grossProfit': {
         zh: '毛利 (不含息)',
         ru: 'Валовая прибыль (без процентов)',
@@ -856,6 +866,68 @@ const translations: Translations = {
         zh: 'CNY',
         ru: 'CNY',
         en: 'CNY'
+    },
+    
+    // 期望盈利与关税选项
+    'expectedProfitPercent': {
+        zh: '期望盈利百分点',
+        ru: 'Ожидаемая прибыль (%)',
+        en: 'Expected Profit (%)'
+    },
+    'expectedProfitHint': {
+        zh: '根据期望盈利倒推建议农场采购价',
+        ru: 'Обратный расчет рекомендуемой цены закупки на ферме',
+        en: 'Reverse calculate suggested farm purchase price'
+    },
+    'suggestedFarmPurchasePrice': {
+        zh: '建议农场采购价',
+        ru: 'Рекомендуемая цена закупки',
+        en: 'Suggested Farm Purchase Price'
+    },
+    'suggestedExportPrice': {
+        zh: '建议出口价格',
+        ru: 'Рекомендуемая экспортная цена',
+        en: 'Suggested Export Price'
+    },
+    'suggestedExportDuty': {
+        zh: '其中关税',
+        ru: 'в т.ч. пошлина',
+        en: 'incl. Duty'
+    },
+    'suggestedExportFormula': {
+        zh: '(采购+短驳+杂费+关税)×(1+盈利点)',
+        ru: '(закупка+перевозка+расходы+пошлина)×(1+прибыль)',
+        en: '(purchase+haul+extras+duty)×(1+profit%)'
+    },
+    'includeShortHaulInDuty': {
+        zh: '关税计算包含短驳费',
+        ru: 'Включить короткую перевозку в расчет пошлины',
+        en: 'Include Short Haul in Duty Calc'
+    },
+    'includeShortHaulYes': {
+        zh: '包含',
+        ru: 'Включить',
+        en: 'Include'
+    },
+    'includeShortHaulNo': {
+        zh: '不包含',
+        ru: 'Не включать',
+        en: 'Exclude'
+    },
+    'exportPriceForDuty': {
+        zh: '关税计算-出口价格 (RUB/t)',
+        ru: 'Цена экспорта для расчета пошлины (RUB/т)',
+        en: 'Export Price for Duty Calc (RUB/t)'
+    },
+    'exportPriceForDutyHint': {
+        zh: '填写此值则用出口价格计算关税，不填则使用进口结算货值',
+        ru: 'Если заполнено, используется для расчета пошлины; иначе используется импортная стоимость',
+        en: 'If filled, use this price for duty calculation; otherwise use import settlement value'
+    },
+    'effectiveDutyBase': {
+        zh: '实际关税基础价',
+        ru: 'Фактическая база для пошлины',
+        en: 'Effective Duty Base'
     }
 };
 

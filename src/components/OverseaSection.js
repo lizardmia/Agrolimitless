@@ -16,8 +16,20 @@ function OverseaSection({
     tonsPerContainer,
     russianArrivalPriceRub,
     russianArrivalPriceCny,
+    baseRussianArrivalPriceRub,
     exportVatRebateRub = 0,
     exportDutyRub = 0,
+    // 新增：期望盈利、短驳关税选项、出口价格
+    expectedProfitPercent = 0,
+    setExpectedProfitPercent,
+    includeShortHaulInDuty = false,
+    setIncludeShortHaulInDuty,
+    exportPriceRub = 0,
+    setExportPriceRub,
+    suggestedFarmPriceRub = 0,
+    suggestedExportPriceRub = 0,
+    suggestedExportDutyRub = 0,
+    effectiveDutyBaseRub = 0,
     language = 'zh',
     t = (key) => key
 }) {
@@ -248,16 +260,34 @@ function OverseaSection({
                                 )
                             )
                         ),
-                        h('div', { className: "flex flex-col" },
-                            h('p', { className: "text-xl font-bold leading-none text-orange-700" },
-                                formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 0 }),
-                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
+                        // 两个版本的海外到站预估
+                        h('div', { className: "flex flex-col gap-2" },
+                            // 版本1：含增值税退税（调整后）
+                            h('div', { className: "bg-orange-50 rounded-lg px-2 py-1.5 border border-orange-100" },
+                                h('p', { className: "text-[9px] text-orange-500 font-bold mb-0.5" }, t('overseasArrivalWithVat')),
+                                h('div', { className: "flex items-baseline gap-1" },
+                                    h('span', { className: "text-xl font-black text-orange-700 leading-none" },
+                                        formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 0 })
+                                    ),
+                                    h('span', { className: "text-[9px] text-slate-400 font-normal" }, ` ${t('rubPerTon')}`)
+                                ),
+                                h('p', { className: "text-xs font-bold text-indigo-500 mt-0.5" },
+                                    "≈ ¥ ",
+                                    formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
+                                )
                             ),
-                            h('p', { className: "text-xs font-bold text-indigo-500 mt-1" },
-                                "≈ ¥ ",
-                                formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
+                            // 版本2：不含增值税退税（原始价格）
+                            baseRussianArrivalPriceRub !== undefined && baseRussianArrivalPriceRub !== russianArrivalPriceRub && h('div', { className: "bg-slate-50 rounded-lg px-2 py-1.5 border border-slate-200" },
+                                h('p', { className: "text-[9px] text-slate-500 font-bold mb-0.5" }, t('overseasArrivalWithoutVat')),
+                                h('div', { className: "flex items-baseline gap-1" },
+                                    h('span', { className: "text-lg font-bold text-slate-600 leading-none" },
+                                        formatCurrencyLocal(baseRussianArrivalPriceRub, { maximumFractionDigits: 0 })
+                                    ),
+                                    h('span', { className: "text-[9px] text-slate-400 font-normal" }, ` ${t('rubPerTon')}`)
+                                )
                             ),
-                            h('p', { className: "text-xs font-bold text-orange-600 mt-1" },
+                            // 物损比
+                            h('p', { className: "text-xs font-bold text-orange-600" },
                                 `${t('lossRatio')}: `,
                                 h('span', { className: "text-orange-700" },
                                     formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
@@ -307,6 +337,128 @@ function OverseaSection({
                                 h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
                             )
                         )
+                    )
+                )
+            ),
+
+            // ─────────────────────────────────────────────────────────────
+            // 新增3个控件
+            // ─────────────────────────────────────────────────────────────
+
+            // 1. 期望盈利百分点 + 建议出口价格
+            h('div', { className: "mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200" },
+                // 标题行：标签 + 输入框
+                h('div', { className: "flex items-center justify-between mb-2" },
+                    h('label', { className: "text-[11px] font-bold text-emerald-700" },
+                        t('expectedProfitPercent'), ' (%)'
+                    ),
+                    h('div', { className: "flex items-center gap-1" },
+                        h('input', {
+                            type: 'number',
+                            min: 0,
+                            step: 0.1,
+                            value: expectedProfitPercent,
+                            onChange: (e) => {
+                                const val = e.target.value;
+                                if (val === '' || val === '0') {
+                                    setExpectedProfitPercent && setExpectedProfitPercent(0);
+                                } else {
+                                    const n = parseFloat(val);
+                                    if (!isNaN(n) && n >= 0) setExpectedProfitPercent && setExpectedProfitPercent(n);
+                                }
+                            },
+                            className: "w-20 text-right text-sm border border-emerald-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
+                            placeholder: '0'
+                        }),
+                        h('span', { className: "text-xs text-emerald-600" }, '%')
+                    )
+                ),
+                // 公式说明
+                h('p', { className: "text-[9px] text-emerald-500 mb-2" }, t('suggestedExportFormula')),
+                // 建议出口价格结果（填了期望盈利才显示）
+                suggestedExportPriceRub > 0 && h('div', { className: "pt-2 border-t border-emerald-200 space-y-1" },
+                    // 主价格
+                    h('div', { className: "flex items-center justify-between" },
+                        h('p', { className: "text-[10px] font-bold text-emerald-700" }, t('suggestedExportPrice')),
+                        h('p', { className: "text-base font-black text-emerald-800" },
+                            formatCurrencyLocal(suggestedExportPriceRub, { maximumFractionDigits: 0 }),
+                            h('span', { className: "text-[9px] font-normal ml-1 text-emerald-500" }, t('rubPerTon'))
+                        )
+                    ),
+                    // 其中关税
+                    suggestedExportDutyRub > 0 && h('div', { className: "flex items-center justify-between" },
+                        h('p', { className: "text-[9px] text-emerald-500" }, t('suggestedExportDuty')),
+                        h('p', { className: "text-sm font-bold text-emerald-600" },
+                            formatCurrencyLocal(suggestedExportDutyRub, { maximumFractionDigits: 0 }),
+                            h('span', { className: "text-[9px] font-normal ml-1 text-emerald-400" }, t('rubPerTon'))
+                        )
+                    )
+                )
+            ),
+
+            // 2. 关税计算是否包含短驳费
+            h('div', { className: "mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200" },
+                h('p', { className: "text-[11px] font-bold text-amber-700 mb-2" },
+                    t('includeShortHaulInDuty')
+                ),
+                h('div', { className: "flex gap-4" },
+                    h('label', { className: "flex items-center gap-1.5 cursor-pointer" },
+                        h('input', {
+                            type: 'radio',
+                            name: 'includeShortHaulInDuty',
+                            checked: includeShortHaulInDuty === false,
+                            onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(false),
+                            className: "accent-amber-600"
+                        }),
+                        h('span', { className: "text-xs text-amber-800" }, t('includeShortHaulNo'))
+                    ),
+                    h('label', { className: "flex items-center gap-1.5 cursor-pointer" },
+                        h('input', {
+                            type: 'radio',
+                            name: 'includeShortHaulInDuty',
+                            checked: includeShortHaulInDuty === true,
+                            onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(true),
+                            className: "accent-amber-600"
+                        }),
+                        h('span', { className: "text-xs text-amber-800" }, t('includeShortHaulYes'))
+                    )
+                )
+            ),
+
+            // 3. 出口价格（关税计算用）
+            h('div', { className: "mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200" },
+                h('div', { className: "flex items-center justify-between mb-1" },
+                    h('label', { className: "text-[11px] font-bold text-blue-700" },
+                        t('exportPriceForDuty')
+                    ),
+                    h('div', { className: "flex items-center gap-1" },
+                        h('input', {
+                            type: 'number',
+                            min: 0,
+                            step: 100,
+                            value: exportPriceRub === 0 ? '' : exportPriceRub,
+                            onChange: (e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                    setExportPriceRub && setExportPriceRub(0);
+                                } else {
+                                    const n = parseFloat(val);
+                                    if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
+                                }
+                            },
+                            className: "w-28 text-right text-sm border border-blue-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                            placeholder: t('importSettlementValue')
+                        }),
+                        h('span', { className: "text-xs text-blue-600" }, 'RUB/t')
+                    )
+                ),
+                h('p', { className: "text-[9px] text-blue-500 mt-1" }, t('exportPriceForDutyHint')),
+                // 显示实际关税基础价
+                effectiveDutyBaseRub > 0 && h('div', { className: "flex items-center justify-between pt-2 mt-2 border-t border-blue-200" },
+                    h('p', { className: "text-[10px] text-blue-600" }, t('effectiveDutyBase')),
+                    h('p', { className: "text-sm font-bold text-blue-700" },
+                        formatCurrencyLocal(effectiveDutyBaseRub, { maximumFractionDigits: 0 }),
+                        h('span', { className: "text-[9px] font-normal ml-1 text-blue-500" }, t('rubPerTon'))
                     )
                 )
             )

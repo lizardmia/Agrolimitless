@@ -96,6 +96,10 @@ export function App() {
     const [shortHaulDistanceKm, setShortHaulDistanceKm] = useState(DEFAULT_VALUES.shortHaulDistanceKm);
     const [shortHaulPricePerKmPerContainer, setShortHaulPricePerKmPerContainer] = useState(DEFAULT_VALUES.shortHaulPricePerKmPerContainer);
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES.exportExtras);
+    // 期望盈利与关税计算选项
+    const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
+    const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(false);
+    const [exportPriceRub, setExportPriceRub] = useState(0);
     
     // 税收政策
     const [dutyRate, setDutyRate] = useState(DEFAULT_VALUES.dutyRate);
@@ -533,16 +537,30 @@ export function App() {
             tonsPerContainer,
             collectionDays,
             interestRate,
-            sellingPriceCny
+            sellingPriceCny,
+            expectedProfitPercent,
+            includeShortHaulInDuty,
+            exportPriceRub
         });
     }, [
         exchangeRate, usdCnyRate, farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, dutyRate, vatRate,
         exportPolicyMode, exportDutyRate, exportVatRate, exportPlanType,
         importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
-        interestRate, sellingPriceCny
+        interestRate, sellingPriceCny,
+        expectedProfitPercent, includeShortHaulInDuty, exportPriceRub
     ]);
     
+    // 当建议出口价变化时，自动填入关税计算出口价输入框
+    useEffect(() => {
+        const suggested = results.suggestedExportPriceRub ?? 0;
+        if (suggested > 0) {
+            setExportPriceRub(Math.round(suggested));
+        } else if (expectedProfitPercent === 0) {
+            setExportPriceRub(0);
+        }
+    }, [results.suggestedExportPriceRub, expectedProfitPercent]);
+
     // 暴露打开弹窗的函数到全局（供JS组件调用）
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -864,8 +882,19 @@ export function App() {
                             tonsPerContainer,
                             russianArrivalPriceRub: results.adjustedRussianArrivalPriceRub ?? results.russianArrivalPriceRub,
                             russianArrivalPriceCny: results.adjustedRussianArrivalPriceCny ?? results.russianArrivalPriceCny,
+                            baseRussianArrivalPriceRub: results.baseRussianArrivalPriceRub,
                             exportVatRebateRub: results.exportVatRebateRub ?? 0,
                             exportDutyRub: results.exportDutyRub ?? 0,
+                            expectedProfitPercent,
+                            setExpectedProfitPercent,
+                            includeShortHaulInDuty,
+                            setIncludeShortHaulInDuty,
+                            exportPriceRub,
+                            setExportPriceRub,
+                            suggestedFarmPriceRub: results.suggestedFarmPriceRub ?? 0,
+                            suggestedExportPriceRub: results.suggestedExportPriceRub ?? 0,
+                            suggestedExportDutyRub: results.suggestedExportDutyRub ?? 0,
+                            effectiveDutyBaseRub: results.effectiveDutyBaseRub ?? 0,
                             language,
                             t
                         }

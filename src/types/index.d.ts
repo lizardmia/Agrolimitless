@@ -48,6 +48,11 @@ export interface PricingParams {
   shortHaulPricePerKmPerContainer?: number;
   exportExtras?: OverseaExtra[];
   
+  // 海外段-期望盈利与关税计算选项
+  expectedProfitPercent?: number;       // 期望盈利百分点（0~100）
+  includeShortHaulInDuty?: boolean;     // 关税计算是否包含短驳费
+  exportPriceRub?: number;              // 关税计算使用的出口价格（RUB/t），不填则用进口结算货值
+  
   // 税收政策
   dutyRate?: number;
   vatRate?: number;
@@ -84,11 +89,18 @@ export interface PricingResults {
   totalTons: number;
   russianArrivalPriceRub: number;
   russianArrivalPriceCny: number;
+  baseRussianArrivalPriceRub: number;   // 未调整的原始海外到站预估（RUB/t）
   exportVatRebateRub?: number;  // 出口增值税退税（RUB/t）
   exportDutyRub?: number;  // 出口关税（RUB/t）
   adjustedRussianArrivalPriceRub?: number;  // 调整后的海外到站预估（RUB/t）
   adjustedRussianArrivalPriceCny?: number;  // 调整后的海外到站预估（CNY/t）
   overseaProfitRubCalculated: number;
+  // 期望盈利相关
+  suggestedFarmPriceRub?: number;       // 兼容旧字段，固定为0
+  suggestedExportPriceRub?: number;     // 建议出口价格（RUB/t）
+  suggestedExportDutyRub?: number;      // 建议出口价对应的关税（RUB/t）
+  effectiveDutyBaseRub?: number;        // 实际关税计算基础价（出口价格 or 进口结算货值）
+  // 国内段
   importValueCny: number;
   intlFreightOverseasCnyPerTon: number;
   intlFreightDomesticCnyPerTon: number;
