@@ -19,10 +19,11 @@ function OverseaSection({
     baseRussianArrivalPriceRub,
     exportVatRebateRub = 0,
     exportDutyRub = 0,
+    exportDutyRate = 0,
     // 新增：期望盈利、短驳关税选项、出口价格
     expectedProfitPercent = 0,
     setExpectedProfitPercent,
-    includeShortHaulInDuty = false,
+    includeShortHaulInDuty = true,
     setIncludeShortHaulInDuty,
     exportPriceRub = 0,
     setExportPriceRub,
@@ -38,7 +39,61 @@ function OverseaSection({
     const { Icon } = window;
     const { formatCurrency } = window.calculations || {};
     
-    // 物损比提示框显示状态
+    // 组件内计算每吨成本基础（用于每吨期望盈利显示）
+    const tpc = tonsPerContainer || 1;
+    const shortHaulFeePerTonDisplay = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+    const exportExtrasTotalDisplay = exportExtras.reduce((sum, item) => {
+        const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
+        return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
+    }, 0);
+    // 成本 base = 农场采购价 + 短驳费/t + 杂费/t
+    const costBase = farmPriceRub + shortHaulFeePerTonDisplay + exportExtrasTotalDisplay;
+    // 每吨期望盈利 = 建议出口价 - costBase
+    const profitPerTon = suggestedExportPriceRub > 0
+        ? suggestedExportPriceRub - costBase
+        : 0;
+
+    // 从每吨盈利反推百分点
+    // 包含短驳：profit = costBase*(m+r)/(1-r)  => m = profit*(1-r)/costBase - r
+    // 不含短驳：P = (costBase*(1+m) - shortHaul*r)/(1-r)，profit = P - costBase
+    //   => profit*(1-r) = costBase*(1+m) - shortHaul*r - costBase*(1-r)
+    //   => profit*(1-r) = costBase*m + costBase*r - shortHaul*r
+    //   => m = [profit*(1-r) - r*(costBase - shortHaul)] / costBase
+    const calcPercentFromProfit = (profit) => {
+        if (costBase <= 0) return 0;
+        const r = exportDutyRate / 100;
+        let m;
+        if (includeShortHaulInDuty) {
+            m = (profit * (1 - r)) / costBase - r;
+        } else {
+            m = (profit * (1 - r) - r * (costBase - shortHaulFeePerTonDisplay)) / costBase;
+        }
+        return Math.round(m * 10000) / 100; // 保留2位小数，允许负值
+    };
+    // 保本最低每吨盈利（令 m=0 时的 profit）
+    // 包含短驳：minProfit = costBase * r / (1-r)
+    // 不含短驳：minProfit = r * (costBase - shortHaulFeePerTonDisplay) / (1-r)
+    const _r = exportDutyRate / 100;
+    const minBreakEvenProfit = costBase > 0 && _r < 1
+        ? (includeShortHaulInDuty
+            ? _r * costBase / (1 - _r)
+            : _r * (costBase - shortHaulFeePerTonDisplay) / (1 - _r))
+        : 0;
+    
+    // 每吨盈利输入框本地 state，与 profitPerTon 联动
+    const [profitPerTonInput, setProfitPerTonInput] = React.useState('');
+    // 标记是否由用户主动输入每吨盈利（防止循环覆盖）
+    const isUserEditingProfit = React.useRef(false);
+
+    // 当百分点驱动的 profitPerTon 变化时，同步到输入框（仅在非用户输入时）
+    React.useEffect(() => {
+        if (isUserEditingProfit.current) return;
+        if (profitPerTon > 0) {
+            setProfitPerTonInput(String(Math.round(profitPerTon)));
+        } else if (expectedProfitPercent === 0) {
+            setProfitPerTonInput('');
+        }
+    }, [profitPerTon, expectedProfitPercent]);
     const [showLossRatioTooltip, setShowLossRatioTooltip] = useState(false);
     const tooltipRef = useRef(null);
     
@@ -165,7 +220,7 @@ function OverseaSection({
                     className: "w-full bg-white/60 p-2 rounded-xl border border-dashed border-orange-200 hover:border-orange-300 hover:bg-orange-50/50 transition-all shadow-sm flex items-center justify-center gap-2 text-orange-500 hover:text-orange-600"
                 },
                     h(Icon, { name: 'Plus', size: 14 }),
-                    h('span', { className: "text-[10px] font-black" }, "添加海外杂费")
+                    h('span', { className: "text-[10px] font-black" }, t('addOverseasExtra'))
                 ),
                 // 海外杂费列表（可滚动容器）
                 h('div', { 
@@ -178,7 +233,7 @@ function OverseaSection({
                                     type: "text",
                                     value: item.name,
                                     onChange: e => updateExportExtra(item.id, 'name', e.target.value),
-                                    placeholder: "费用项目",
+                                    placeholder: t('extraItemName'),
                                     className: "flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
                                 }),
                                 h('button', {
@@ -347,8 +402,8 @@ function OverseaSection({
 
             // 1. 期望盈利百分点 + 建议出口价格
             h('div', { className: "mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200" },
-                // 标题行：标签 + 输入框
-                h('div', { className: "flex items-center justify-between mb-2" },
+                // 第一行：百分点输入
+                h('div', { className: "flex items-center justify-between mb-1" },
                     h('label', { className: "text-[11px] font-bold text-emerald-700" },
                         t('expectedProfitPercent'), ' (%)'
                     ),
@@ -373,11 +428,50 @@ function OverseaSection({
                         h('span', { className: "text-xs text-emerald-600" }, '%')
                     )
                 ),
+                // 第二行：每吨期望盈利输入框（与百分点双向联动）
+                h('div', { className: "flex items-center justify-between mb-1" },
+                    h('label', { className: "text-[10px] text-emerald-600" },
+                        t('expectedProfitPerTon')
+                    ),
+                    h('div', { className: "flex items-center gap-1" },
+                        h('input', {
+                            type: 'number',
+                            step: 10,
+                            value: profitPerTonInput,
+                            onChange: (e) => {
+                                const val = e.target.value;
+                                isUserEditingProfit.current = true;
+                                setProfitPerTonInput(val);
+                                if (val === '') {
+                                    setExpectedProfitPercent && setExpectedProfitPercent(0);
+                                } else {
+                                    const n = parseFloat(val);
+                                    if (!isNaN(n)) {
+                                        const pct = calcPercentFromProfit(n);
+                                        setExpectedProfitPercent && setExpectedProfitPercent(Math.max(0, pct));
+                                    }
+                                }
+                                // 短暂延迟后解除标记，让 effect 可以在下次百分点变化时正常同步
+                                setTimeout(() => { isUserEditingProfit.current = false; }, 300);
+                            },
+                            className: "w-24 text-right text-sm border border-emerald-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
+                            placeholder: '0'
+                        }),
+                        h('span', { className: "text-xs text-emerald-500" }, t('rubPerTon'))
+                    )
+                ),
+                // 保本最低利润提示（关税>0时显示）
+                exportDutyRate > 0 && costBase > 0 && h('p', { className: "text-[9px] text-amber-600 mb-1" },
+                    `${t('breakEvenHint') || '保本最低每吨盈利'}: `,
+                    h('span', { className: "font-bold" },
+                        formatCurrencyLocal(minBreakEvenProfit, { maximumFractionDigits: 0 })
+                    ),
+                    ` ${t('rubPerTon')}`
+                ),
                 // 公式说明
                 h('p', { className: "text-[9px] text-emerald-500 mb-2" }, t('suggestedExportFormula')),
-                // 建议出口价格结果（填了期望盈利才显示）
+                // 建议出口价格结果
                 suggestedExportPriceRub > 0 && h('div', { className: "pt-2 border-t border-emerald-200 space-y-1" },
-                    // 主价格
                     h('div', { className: "flex items-center justify-between" },
                         h('p', { className: "text-[10px] font-bold text-emerald-700" }, t('suggestedExportPrice')),
                         h('p', { className: "text-base font-black text-emerald-800" },
@@ -385,7 +479,6 @@ function OverseaSection({
                             h('span', { className: "text-[9px] font-normal ml-1 text-emerald-500" }, t('rubPerTon'))
                         )
                     ),
-                    // 其中关税
                     suggestedExportDutyRub > 0 && h('div', { className: "flex items-center justify-between" },
                         h('p', { className: "text-[9px] text-emerald-500" }, t('suggestedExportDuty')),
                         h('p', { className: "text-sm font-bold text-emerald-600" },

@@ -82,21 +82,26 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
     const baseRussianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
     
     // === 先算建议出口价（供后续关税计算使用）===
-    // 公式：建议出口价 P = (base + P*exportDutyRate/100) * (1 + m)
-    // 代数解（includeShortHaulInDuty=true）：P = base*(1+m) / (1 - r*(1+m))
-    // 代数解（includeShortHaulInDuty=false）：P = (base - shortHaul*r)*(1+m) / (1 - r*(1+m))
+    // 定义：利润 = costBase × m（加成率，相对成本的盈利比例）
+    // 关税 = P × r，则 P = costBase + costBase×m + P×r
+    // 解得：P = costBase*(1+m) / (1-r)
+    // 每吨盈利 profit = P - costBase = costBase*(m+r)/(1-r)
     const suggestedExportPriceBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
     const m = expectedProfitPercent / 100;
     const r = exportDutyRate / 100;
-    const denominator = 1 - r * (1 + m);
     let suggestedExportPriceRub = 0;
-    if (expectedProfitPercent > 0 && denominator > 0) {
+    if (expectedProfitPercent > 0 && r < 1) {
         if (includeShortHaulInDuty) {
-            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / denominator;
+            // 关税基数 = P（含短驳）：P = base*(1+m)/(1-r)
+            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
         } else {
-            const numerator = (suggestedExportPriceBase - shortHaulFeePerTon * r) * (1 + m);
-            suggestedExportPriceRub = numerator / denominator;
+            // 关税基数 = P - shortHaulFeePerTon：
+            // P = base*(1+m) + (P - shortHaul)*r
+            // P*(1-r) = base*(1+m) - shortHaul*r
+            // P = (base*(1+m) - shortHaul*r) / (1-r)
+            suggestedExportPriceRub = (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
         }
+        if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
     }
     // 实际用于关税计算的出口价：优先用 exportPriceRub（App 层自动或手动填入），无则用建议值，再无则 0
     const effectiveExportPriceForDuty = exportPriceRub > 0

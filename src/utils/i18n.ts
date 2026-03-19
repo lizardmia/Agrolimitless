@@ -874,6 +874,16 @@ const translations: Translations = {
         ru: 'Ожидаемая прибыль (%)',
         en: 'Expected Profit (%)'
     },
+    'expectedProfitPerTon': {
+        zh: '每吨期望盈利',
+        ru: 'Прибыль на тонну',
+        en: 'Profit per Ton'
+    },
+    'breakEvenHint': {
+        zh: '保本最低每吨盈利',
+        ru: 'Мин. прибыль для безубыточности',
+        en: 'Min profit to break even'
+    },
     'expectedProfitHint': {
         zh: '根据期望盈利倒推建议农场采购价',
         ru: 'Обратный расчет рекомендуемой цены закупки на ферме',
@@ -928,6 +938,16 @@ const translations: Translations = {
         zh: '实际关税基础价',
         ru: 'Фактическая база для пошлины',
         en: 'Effective Duty Base'
+    },
+    'addOverseasExtra': {
+        zh: '添加海外杂费',
+        ru: 'Добавить доп. расходы (заграница)',
+        en: 'Add Overseas Extra'
+    },
+    'extraItemName': {
+        zh: '费用项目',
+        ru: 'Статья расходов',
+        en: 'Item Name'
     }
 };
 

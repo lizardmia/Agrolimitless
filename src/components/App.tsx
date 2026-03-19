@@ -98,7 +98,7 @@ export function App() {
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES.exportExtras);
     // 期望盈利与关税计算选项
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
-    const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(false);
+    const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(true);
     const [exportPriceRub, setExportPriceRub] = useState(0);
     
     // 税收政策
@@ -510,6 +510,41 @@ export function App() {
     const deleteDomesticExtra = (id: number) => setDomesticExtras(domesticExtras.filter((item: DomesticExtra) => item.id !== id));
     const updateDomesticExtra = (id: number, field: string, value: any) => setDomesticExtras(domesticExtras.map((item: DomesticExtra) => item.id === id ? { ...item, [field]: value } : item));
     const toggleDomesticExtraUnit = (id: number) => setDomesticExtras(domesticExtras.map((item: DomesticExtra) => item.id === id ? { ...item, unit: item.unit === 'CNY/柜' ? 'CNY/ton' : 'CNY/柜' } : item));
+
+    // 固定 id，用于标识自动插入的"海外短驳费（转CNY）"条目
+    const SHORT_HAUL_AUTO_ID = -9999;
+
+    // 当"不包含短驳入关税"时，自动将海外短驳费转为 CNY/ton 插入国内杂费
+    useEffect(() => {
+        const tpc = tonsPerContainer || 1;
+        const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+        const shortHaulCny = shortHaulFeePerTon / (exchangeRate || 1);
+
+        if (!includeShortHaulInDuty && shortHaulCny > 0) {
+            // 插入或更新该条目
+            setDomesticExtras((prev: DomesticExtra[]) => {
+                const exists = prev.find((item: DomesticExtra) => item.id === SHORT_HAUL_AUTO_ID);
+                if (exists) {
+                    return prev.map((item: DomesticExtra) =>
+                        item.id === SHORT_HAUL_AUTO_ID
+                            ? { ...item, value: Math.round(shortHaulCny * 100) / 100 }
+                            : item
+                    );
+                }
+                return [...prev, {
+                    id: SHORT_HAUL_AUTO_ID,
+                    name: '海外短驳费(转CNY)',
+                    value: Math.round(shortHaulCny * 100) / 100,
+                    unit: 'CNY/ton'
+                }];
+            });
+        } else {
+            // 包含或短驳费为0时，移除该条目
+            setDomesticExtras((prev: DomesticExtra[]) =>
+                prev.filter((item: DomesticExtra) => item.id !== SHORT_HAUL_AUTO_ID)
+            );
+        }
+    }, [includeShortHaulInDuty, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, tonsPerContainer, exchangeRate]);
     
     // === 计算 ===
     const results: PricingResults = useMemo(() => {
@@ -552,14 +587,30 @@ export function App() {
     ]);
     
     // 当建议出口价变化时，自动填入关税计算出口价输入框
+    // 若期望盈利为0但有关税，自动填入保本出口价（m=0 时 P = costBase/(1-r)）
     useEffect(() => {
         const suggested = results.suggestedExportPriceRub ?? 0;
         if (suggested > 0) {
             setExportPriceRub(Math.round(suggested));
-        } else if (expectedProfitPercent === 0) {
+        } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
+            // 计算保本出口价：令盈利点=0，P = costBase / (1-r)
+            const tpc = tonsPerContainer || 1;
+            const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+            const exportExtrasTotalRub = exportExtras.reduce((sum: number, item: any) => {
+                const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
+                return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
+            }, 0);
+            const costBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+            const r = exportDutyRate / 100;
+            if (costBase > 0 && r < 1) {
+                const breakEvenPrice = Math.round(costBase / (1 - r));
+                setExportPriceRub(breakEvenPrice);
+            }
+        } else if (expectedProfitPercent === 0 && exportDutyRate === 0) {
             setExportPriceRub(0);
         }
-    }, [results.suggestedExportPriceRub, expectedProfitPercent]);
+    }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
+        farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, tonsPerContainer]);
 
     // 暴露打开弹窗的函数到全局（供JS组件调用）
     useEffect(() => {
@@ -885,6 +936,7 @@ export function App() {
                             baseRussianArrivalPriceRub: results.baseRussianArrivalPriceRub,
                             exportVatRebateRub: results.exportVatRebateRub ?? 0,
                             exportDutyRub: results.exportDutyRub ?? 0,
+                            exportDutyRate,
                             expectedProfitPercent,
                             setExpectedProfitPercent,
                             includeShortHaulInDuty,

@@ -75,18 +75,19 @@ function calculatePricing(params) {
     const baseRussianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
     
     // === 先算建议出口价（供后续关税计算使用）===
+    // 定义：利润 = costBase × m（加成率）
+    // P = costBase*(1+m)/(1-r)
     const suggestedExportPriceBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
     const m = expectedProfitPercent / 100;
     const r = exportDutyRate / 100;
-    const denominator = 1 - r * (1 + m);
     let suggestedExportPriceRub = 0;
-    if (expectedProfitPercent > 0 && denominator > 0) {
+    if (expectedProfitPercent > 0 && r < 1) {
         if (includeShortHaulInDuty) {
-            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / denominator;
+            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
         } else {
-            const numerator = (suggestedExportPriceBase - shortHaulFeePerTon * r) * (1 + m);
-            suggestedExportPriceRub = numerator / denominator;
+            suggestedExportPriceRub = (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
         }
+        if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
     }
     // 实际用于关税计算的出口价
     const effectiveExportPriceForDuty = exportPriceRub > 0

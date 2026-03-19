@@ -108,7 +108,7 @@ function App() {
     const [shortHaulPricePerKmPerContainer, setShortHaulPricePerKmPerContainer] = useState(DEFAULT_VALUES?.shortHaulPricePerKmPerContainer ?? 0);
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES?.exportExtras ?? []);
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
-    const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(false);
+    const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(true);
     const [exportPriceRub, setExportPriceRub] = useState(0);
     
     // 税收政策
@@ -314,6 +314,8 @@ function App() {
             'cnyPerContainer': { zh: 'CNY/柜', ru: 'CNY/контейнер', en: 'CNY/container' },
             'cny': { zh: 'CNY', ru: 'CNY', en: 'CNY' },
             'expectedProfitPercent': { zh: '期望盈利百分点', ru: 'Ожидаемая прибыль (%)', en: 'Expected Profit (%)' },
+            'expectedProfitPerTon': { zh: '每吨期望盈利', ru: 'Прибыль на тонну', en: 'Profit per Ton' },
+            'breakEvenHint': { zh: '保本最低每吨盈利', ru: 'Мин. прибыль для безубыточности', en: 'Min profit to break even' },
             'expectedProfitHint': { zh: '根据期望盈利倒推建议农场采购价', ru: 'Обратный расчет рекомендуемой цены закупки на ферме', en: 'Reverse calculate suggested farm purchase price' },
             'suggestedFarmPurchasePrice': { zh: '建议农场采购价', ru: 'Рекомендуемая цена закупки', en: 'Suggested Farm Purchase Price' },
             'suggestedExportPrice': { zh: '建议出口价格', ru: 'Рекомендуемая экспортная цена', en: 'Suggested Export Price' },
@@ -324,7 +326,9 @@ function App() {
             'includeShortHaulNo': { zh: '不包含', ru: 'Не включать', en: 'Exclude' },
             'exportPriceForDuty': { zh: '关税计算-出口价格 (RUB/t)', ru: 'Цена экспорта для расчета пошлины (RUB/т)', en: 'Export Price for Duty Calc (RUB/t)' },
             'exportPriceForDutyHint': { zh: '填写此值则用出口价格计算关税，不填则使用进口结算货值', ru: 'Если заполнено, используется для расчета пошлины; иначе используется импортная стоимость', en: 'If filled, use this price for duty calculation; otherwise use import settlement value' },
-            'effectiveDutyBase': { zh: '实际关税基础价', ru: 'Фактическая база для пошлины', en: 'Effective Duty Base' }
+            'effectiveDutyBase': { zh: '实际关税基础价', ru: 'Фактическая база для пошлины', en: 'Effective Duty Base' },
+            'addOverseasExtra': { zh: '添加海外杂费', ru: 'Добавить доп. расходы (заграница)', en: 'Add Overseas Extra' },
+            'extraItemName': { zh: '费用项目', ru: 'Статья расходов', en: 'Item Name' }
         };
         const trans = translations[key];
         return trans ? trans[language] || trans.zh : key;
@@ -561,6 +565,33 @@ function App() {
     const deleteDomesticExtra = (id) => setDomesticExtras(domesticExtras.filter(item => item.id !== id));
     const updateDomesticExtra = (id, field, value) => setDomesticExtras(domesticExtras.map(item => item.id === id ? { ...item, [field]: value } : item));
     const toggleDomesticExtraUnit = (id) => setDomesticExtras(domesticExtras.map(item => item.id === id ? { ...item, unit: item.unit === 'CNY/柜' ? 'CNY/ton' : 'CNY/柜' } : item));
+
+    const SHORT_HAUL_AUTO_ID = -9999;
+    useEffect(() => {
+        const tpc = tonsPerContainer || 1;
+        const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+        const shortHaulCny = shortHaulFeePerTon / (exchangeRate || 1);
+        if (!includeShortHaulInDuty && shortHaulCny > 0) {
+            setDomesticExtras(prev => {
+                const exists = prev.find(item => item.id === SHORT_HAUL_AUTO_ID);
+                if (exists) {
+                    return prev.map(item =>
+                        item.id === SHORT_HAUL_AUTO_ID
+                            ? { ...item, value: Math.round(shortHaulCny * 100) / 100 }
+                            : item
+                    );
+                }
+                return [...prev, {
+                    id: SHORT_HAUL_AUTO_ID,
+                    name: '海外短驳费(转CNY)',
+                    value: Math.round(shortHaulCny * 100) / 100,
+                    unit: 'CNY/ton'
+                }];
+            });
+        } else {
+            setDomesticExtras(prev => prev.filter(item => item.id !== SHORT_HAUL_AUTO_ID));
+        }
+    }, [includeShortHaulInDuty, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, tonsPerContainer, exchangeRate]);
     
     // === 计算 ===
     const results = useMemo(() => {
@@ -603,14 +634,28 @@ function App() {
     ]);
     
     // 当建议出口价变化时，自动填入关税计算出口价输入框
+    // 若期望盈利为0但有关税，自动填入保本出口价
     useEffect(() => {
         const suggested = results.suggestedExportPriceRub ?? 0;
         if (suggested > 0) {
             setExportPriceRub(Math.round(suggested));
-        } else if (expectedProfitPercent === 0) {
+        } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
+            const tpc = tonsPerContainer || 1;
+            const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+            const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {
+                const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
+                return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
+            }, 0);
+            const costBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+            const r = exportDutyRate / 100;
+            if (costBase > 0 && r < 1) {
+                setExportPriceRub(Math.round(costBase / (1 - r)));
+            }
+        } else if (expectedProfitPercent === 0 && exportDutyRate === 0) {
             setExportPriceRub(0);
         }
-    }, [results.suggestedExportPriceRub, expectedProfitPercent]);
+    }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
+        farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, tonsPerContainer]);
 
     // === 渲染 ===
     return h('div', { className: "min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800" },
@@ -737,6 +782,7 @@ function App() {
                     baseRussianArrivalPriceRub: results.baseRussianArrivalPriceRub,
                     exportVatRebateRub: results.exportVatRebateRub ?? 0,
                     exportDutyRub: results.exportDutyRub ?? 0,
+                    exportDutyRate,
                     expectedProfitPercent,
                     setExpectedProfitPercent,
                     includeShortHaulInDuty,
