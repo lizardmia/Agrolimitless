@@ -12,10 +12,19 @@ const DEFAULT_VALUES = {
     subType: '小麦',
     policyName: '常规进口税收政策',
     
-    // 海外段
+    // 海外段（农场+短驳可多组；兼容旧字段仍保留为 0）
     farmPriceRub: 0,
-    shortHaulDistanceKm: 0,  // 短驳公里数
-    shortHaulPricePerKmPerContainer: 0,  // 每公里每柜的价格（RUB）
+    shortHaulDistanceKm: 0,
+    shortHaulPricePerKmPerContainer: 0,
+    overseaModules: [
+        {
+            id: 1,
+            farmPriceRub: 0,
+            shortHaulDistanceKm: 0,
+            shortHaulPricePerKmPerContainer: 0,
+            shortHaulVatRate: 0
+        }
+    ],
     exportExtras: [],
     
     // 税收政策

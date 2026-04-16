@@ -17,7 +17,7 @@ import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations.ts';
 import { DEFAULT_VALUES } from '../config/constants.js';
 import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
 import { createTranslator, type Language } from '../utils/i18n.ts';
-import type { PricingResults, OverseaExtra, DomesticExtra } from '../types/index.d';
+import type { PricingResults, OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
 
 export function App() {
     // === 认证状态 ===
@@ -91,10 +91,13 @@ export function App() {
         }
     }, [language, t]);
     
-    // 海外段参数
-    const [farmPriceRub, setFarmPriceRub] = useState(DEFAULT_VALUES.farmPriceRub);
-    const [shortHaulDistanceKm, setShortHaulDistanceKm] = useState(DEFAULT_VALUES.shortHaulDistanceKm);
-    const [shortHaulPricePerKmPerContainer, setShortHaulPricePerKmPerContainer] = useState(DEFAULT_VALUES.shortHaulPricePerKmPerContainer);
+    // 海外段参数（农场+短驳可多组）
+    const [overseaModules, setOverseaModules] = useState<OverseaFarmHaulModule[]>(() => {
+        const m = DEFAULT_VALUES.overseaModules;
+        return Array.isArray(m) && m.length > 0
+            ? (m as OverseaFarmHaulModule[])
+            : [{ id: 1, farmPriceRub: 0, shortHaulDistanceKm: 0, shortHaulPricePerKmPerContainer: 0, shortHaulVatRate: 0 }];
+    });
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES.exportExtras);
     // 期望盈利与关税计算选项
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
@@ -186,6 +189,19 @@ export function App() {
     // 批次参数
     const [totalContainers, setTotalContainers] = useState(DEFAULT_VALUES.totalContainers);
     const [tonsPerContainer, setTonsPerContainer] = useState(DEFAULT_VALUES.tonsPerContainer);
+
+    const farmPriceRubSum = useMemo(
+        () => overseaModules.reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0),
+        [overseaModules]
+    );
+    const shortHaulFeePerTonTotal = useMemo(() => {
+        const tpc = tonsPerContainer || 1;
+        return overseaModules.reduce((s, m) => {
+            const km = Number(m.shortHaulDistanceKm) || 0;
+            const pp = Number(m.shortHaulPricePerKmPerContainer) || 0;
+            return s + (km * 2 * pp) / tpc;
+        }, 0);
+    }, [overseaModules, tonsPerContainer]);
     
     // 资金参数
     const [collectionDays, setCollectionDays] = useState(DEFAULT_VALUES.collectionDays);
@@ -501,7 +517,7 @@ export function App() {
         }
     };
     
-    const addExportExtra = () => setExportExtras([...exportExtras, { id: Date.now(), name: '', value: '', unit: 'RUB/ton' }]);
+    const addExportExtra = () => setExportExtras([...exportExtras, { id: Date.now(), name: '', value: '', unit: 'RUB/ton', vatRate: 0 }]);
     const deleteExportExtra = (id: number) => setExportExtras(exportExtras.filter((item: OverseaExtra) => item.id !== id));
     const updateExportExtra = (id: number, field: string, value: any) => setExportExtras(exportExtras.map((item: OverseaExtra) => item.id === id ? { ...item, [field]: value } : item));
     const toggleExportExtraUnit = (id: number) => setExportExtras(exportExtras.map((item: OverseaExtra) => item.id === id ? { ...item, unit: item.unit === 'RUB/ton' ? 'RUB/container' : 'RUB/ton' } : item));
@@ -516,9 +532,7 @@ export function App() {
 
     // 当"不包含短驳入关税"时，自动将海外短驳费转为 CNY/ton 插入国内杂费
     useEffect(() => {
-        const tpc = tonsPerContainer || 1;
-        const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
-        const shortHaulCny = shortHaulFeePerTon / (exchangeRate || 1);
+        const shortHaulCny = shortHaulFeePerTonTotal / (exchangeRate || 1);
 
         if (!includeShortHaulInDuty && shortHaulCny > 0) {
             // 插入或更新该条目
@@ -544,16 +558,17 @@ export function App() {
                 prev.filter((item: DomesticExtra) => item.id !== SHORT_HAUL_AUTO_ID)
             );
         }
-    }, [includeShortHaulInDuty, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, tonsPerContainer, exchangeRate]);
+    }, [includeShortHaulInDuty, shortHaulFeePerTonTotal, exchangeRate]);
     
     // === 计算 ===
     const results: PricingResults = useMemo(() => {
         return calculatePricing({
             exchangeRate,
             usdCnyRate,
-            farmPriceRub,
-            shortHaulDistanceKm,
-            shortHaulPricePerKmPerContainer,
+            farmPriceRub: farmPriceRubSum,
+            shortHaulDistanceKm: 0,
+            shortHaulPricePerKmPerContainer: 0,
+            shortHaulFeePerTonOverride: shortHaulFeePerTonTotal,
             exportExtras,
             dutyRate,
             vatRate,
@@ -578,7 +593,7 @@ export function App() {
             exportPriceRub
         });
     }, [
-        exchangeRate, usdCnyRate, farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, dutyRate, vatRate,
+        exchangeRate, usdCnyRate, farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, dutyRate, vatRate,
         exportPolicyMode, exportDutyRate, exportVatRate, exportPlanType,
         importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
@@ -595,12 +610,11 @@ export function App() {
         } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
             // 计算保本出口价：令盈利点=0，P = costBase / (1-r)
             const tpc = tonsPerContainer || 1;
-            const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
             const exportExtrasTotalRub = exportExtras.reduce((sum: number, item: any) => {
                 const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
                 return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
             }, 0);
-            const costBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+            const costBase = farmPriceRubSum + shortHaulFeePerTonTotal + exportExtrasTotalRub;
             const r = exportDutyRate / 100;
             if (costBase > 0 && r < 1) {
                 const breakEvenPrice = Math.round(costBase / (1 - r));
@@ -610,19 +624,7 @@ export function App() {
             setExportPriceRub(0);
         }
     }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
-        farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, tonsPerContainer]);
-
-    // 暴露打开弹窗的函数到全局（供JS组件调用）
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            (window as any).openFarmPriceReverseModal = () => setIsReverseModalOpen(true);
-        }
-        return () => {
-            if (typeof window !== 'undefined') {
-                delete (window as any).openFarmPriceReverseModal;
-            }
-        };
-    }, []);
+        farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, tonsPerContainer]);
     
     // === 认证处理 ===
     const handleLoginSuccess = () => {
@@ -653,14 +655,17 @@ export function App() {
             <FarmPriceReverseModal
                 isOpen={isReverseModalOpen}
                 onClose={() => setIsReverseModalOpen(false)}
-                onApply={(farmPriceRub) => {
-                    setFarmPriceRub(farmPriceRub);
+                onApply={(totalFarmRub) => {
+                    setOverseaModules((mods) => {
+                        const rest = mods.slice(1).reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0);
+                        const firstFarm = Math.max(0, Number(totalFarmRub) - rest);
+                        return mods.map((m, i) => (i === 0 ? { ...m, farmPriceRub: firstFarm } : m));
+                    });
                     setIsReverseModalOpen(false);
                 }}
                 exchangeRate={exchangeRate}
                 usdCnyRate={usdCnyRate}
-                shortHaulDistanceKm={shortHaulDistanceKm}
-                shortHaulPricePerKmPerContainer={shortHaulPricePerKmPerContainer}
+                shortHaulFeePerTon={shortHaulFeePerTonTotal}
                 exportExtras={exportExtras}
                 dutyRate={dutyRate}
                 vatRate={vatRate}
@@ -919,12 +924,8 @@ export function App() {
                     {typeof window !== 'undefined' && (window as any).OverseaSection && createElement(
                         (window as any).OverseaSection,
                         {
-                            farmPriceRub,
-                            setFarmPriceRub,
-                            shortHaulDistanceKm,
-                            setShortHaulDistanceKm,
-                            shortHaulPricePerKmPerContainer,
-                            setShortHaulPricePerKmPerContainer,
+                            overseaModules,
+                            setOverseaModules,
                             exportExtras,
                             addExportExtra,
                             deleteExportExtra,
@@ -937,6 +938,7 @@ export function App() {
                             exportVatRebateRub: results.exportVatRebateRub ?? 0,
                             exportDutyRub: results.exportDutyRub ?? 0,
                             exportDutyRate,
+                            exportVatRate,
                             expectedProfitPercent,
                             setExpectedProfitPercent,
                             includeShortHaulInDuty,

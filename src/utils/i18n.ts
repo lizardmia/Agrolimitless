@@ -318,6 +318,21 @@ const translations: Translations = {
         ru: 'Плата за короткую перевозку',
         en: 'Short Haul Fee'
     },
+    'farmHaulModuleTitle': {
+        zh: '农场采购与短驳',
+        ru: 'Закупка и короткая перевозка',
+        en: 'Farm purchase & short haul'
+    },
+    'addFarmHaulModule': {
+        zh: '添加农场+短驳模块',
+        ru: 'Добавить блок (ферма + перевозка)',
+        en: 'Add farm + short-haul block'
+    },
+    'removeFarmHaulModule': {
+        zh: '删除此模块',
+        ru: 'Удалить блок',
+        en: 'Remove this block'
+    },
     'calculationFormula': {
         zh: '计算公式',
         ru: 'Формула расчета',
@@ -348,6 +363,116 @@ const translations: Translations = {
         ru: 'НДС',
         en: 'VAT'
     },
+    'vatSumTotal': {
+        zh: '增值税的总和',
+        ru: 'Сумма НДС',
+        en: 'Total VAT (sum)'
+    },
+    'vatSumFormula': {
+        zh: '计算公式: 各模块农场采购价增值税(同出口增值税率) + 各模块短驳费增值税 + 各杂费增值税（价内税，仅展示）',
+        ru: 'Формула: НДС закупки по блокам + НДС перевозки по блокам + НДС по доп. (в цене, только показ)',
+        en: 'Formula: per-block farm VAT (export rate) + per-block short-haul VAT + extras VAT (display only)'
+    },
+    'vatSumMinusDutyFormula': {
+        zh: '计算公式: 增值税总和 − 关税',
+        ru: 'Формула: сумма НДС − пошлина',
+        en: 'Formula: total VAT − duty'
+    },
+    'vatDisplayOnlyNote': {
+        zh: '以下增值税仅展示（价内税），不参与到站预估等计算',
+        ru: 'НДС ниже только для отображения (в цене), не влияет на расчёты',
+        en: 'VAT below is display-only (inclusive), not used in totals'
+    },
+    'vatDisplayFarm': {
+        zh: '农场采购价增值税',
+        ru: 'НДС закупки на ферме',
+        en: 'Farm purchase VAT'
+    },
+    'vatRateFixed10': {
+        zh: '税率 10%（固定）',
+        ru: 'Ставка 10% (фикс.)',
+        en: 'Rate 10% (fixed)'
+    },
+    'vatRateLinkedExport': {
+        zh: '同出口增值税率',
+        ru: 'Как экспортная ставка НДС',
+        en: 'Same as export VAT %'
+    },
+    'vatRateExportUnsetHint': {
+        zh: '请在出口政策中填写出口增值税率',
+        ru: 'Укажите экспортный НДС в политике',
+        en: 'Set export VAT % in export policy'
+    },
+    'shortHaulVatRateLabel': {
+        zh: '短驳费增值税率',
+        ru: 'Ставка НДС на короткую перевозку',
+        en: 'Short haul VAT rate'
+    },
+    'vatPerTonShortHaul': {
+        zh: '短驳费增值税（每吨）',
+        ru: 'НДС перевозки (руб/т)',
+        en: 'Short haul VAT (per ton)'
+    },
+    'extraVatRateLabel': {
+        zh: '杂费增值税率',
+        ru: 'Ставка НДС на доп. расход',
+        en: 'Extra VAT rate'
+    },
+    'vatPerTonExtra': {
+        zh: '杂费增值税（每吨）',
+        ru: 'НДС доп. расхода (руб/т)',
+        en: 'Extra VAT (per ton)'
+    },
+    'vatCalcDetailTitle': {
+        zh: '价内税计算过程',
+        ru: 'Расчёт НДС (в цене)',
+        en: 'Inclusive VAT breakdown'
+    },
+    'vatCalcToggleShow': {
+        zh: '查看详细计算过程',
+        ru: 'Показать расчёт',
+        en: 'Show calculation steps'
+    },
+    'vatCalcToggleHide': {
+        zh: '收起',
+        ru: 'Скрыть',
+        en: 'Hide'
+    },
+    'vatCalcStep1ShortHaul': {
+        zh: '短驳费（每柜）= 公里数 × 2 × 每公里每柜价',
+        ru: 'Перевозка (за конт.) = км × 2 × цена/км/конт.',
+        en: 'Short haul (per container) = km × 2 × price/km/container'
+    },
+    'vatCalcStep2PerTon': {
+        zh: '短驳费（每吨）= 短驳费（每柜）÷ 每柜吨数',
+        ru: 'Перевозка (руб/т) = за контейнер ÷ тонн/конт.',
+        en: 'Short haul (per ton) = per-container fee ÷ tons per container'
+    },
+    'vatCalcStep3Inclusive': {
+        zh: '每吨增值税（价内税）= 每吨含税金额 × 税率 ÷ (100% + 税率)',
+        ru: 'НДС/т (в цене) = сумма/т × ставка ÷ (100% + ставка)',
+        en: 'VAT/t (inclusive) = amount/t × rate ÷ (100% + rate)'
+    },
+    'vatCalcStepFarm': {
+        zh: '农场采购价增值税（价内税）= 采购价 × 10% ÷ (100% + 10%)',
+        ru: 'НДС закупки = цена × 10% ÷ (100% + 10%)',
+        en: 'Farm VAT = price × 10% ÷ (100% + 10%)'
+    },
+    'vatCalcStepFarmTpl': {
+        zh: '农场采购价增值税（价内税）= 采购价 × {rate}% ÷ (100% + {rate}%)',
+        ru: 'НДС закупки (в цене) = цена × {rate}% ÷ (100% + {rate}%)',
+        en: 'Farm VAT (inclusive) = price × {rate}% ÷ (100% + {rate}%)'
+    },
+    'vatCalcStepExtra': {
+        zh: '杂费增值税（每吨，价内税）= 杂费含税（每吨）× 税率 ÷ (100% + 税率)',
+        ru: 'НДС доп. = сумма/т × ставка ÷ (100% + ставка)',
+        en: 'Extra VAT/t = inclusive extra/t × rate ÷ (100% + rate)'
+    },
+    'vatCalcExtraPerTonFromContainer': {
+        zh: '杂费（每吨）= 杂费（每柜）÷ 每柜吨数',
+        ru: 'Доп./т = доп./конт. ÷ тонн/конт.',
+        en: 'Extra (per ton) = per-container ÷ tons per container'
+    },
     'vatFormula': {
         zh: '计算公式: 采购价（不含税） × 增值税率',
         ru: 'Формула расчета: Цена покупки (без налога) × Ставка НДС',
@@ -359,19 +484,19 @@ const translations: Translations = {
         en: 'Duty'
     },
     'dutyFormula': {
-        zh: '计算公式: 进口结算货值 × 关税税率',
-        ru: 'Формула расчета: Стоимость импортного расчета × Ставка пошлины',
-        en: 'Formula: Import Settlement Value × Duty Rate'
+        zh: '计算公式: 海外到站预估 × 关税税率',
+        ru: 'Формула: Прогноз прибытия × Ставка экспортной пошлины',
+        en: 'Formula: Overseas Arrival Estimate × Export Duty Rate'
     },
     'vatMinusDuty': {
-        zh: '增值税 - 关税',
-        ru: 'НДС - Пошлина',
-        en: 'VAT - Duty'
+        zh: '增值税总和 - 关税',
+        ru: 'Сумма НДС − пошлина',
+        en: 'Total VAT − Duty'
     },
     'vatMinusDutyFormula': {
-        zh: '计算公式: 增值税 - 关税',
-        ru: 'Формула расчета: НДС - Пошлина',
-        en: 'Formula: VAT - Duty'
+        zh: '计算公式: 增值税总和 − 关税',
+        ru: 'Формула: сумма НДС − пошлина',
+        en: 'Formula: total VAT − duty'
     },
     
     // 国内段
@@ -948,6 +1073,62 @@ const translations: Translations = {
         zh: '费用项目',
         ru: 'Статья расходов',
         en: 'Item Name'
+    },
+    /** 海外杂费常用项目名称（英文用语按业务约定） */
+    'exportExtraPreset_packageCost': {
+        zh: '袋子费用',
+        ru: 'Стоимость упаковочных мешков / тары',
+        en: 'package cost'
+    },
+    'exportExtraPreset_laborCost': {
+        zh: '打包人力费用',
+        ru: 'Стоимость труда на упаковку',
+        en: 'labor cost'
+    },
+    'exportExtraPreset_packageLaborCombo': {
+        zh: '打包服务费（袋子+人力）',
+        ru: 'Услуги упаковки (материалы + труд)',
+        en: 'package+labor cost'
+    },
+    'exportExtraPreset_labTestConformity': {
+        zh: '符合性声明实验室检测费',
+        ru: 'Лабораторные испытания для декларации соответствия',
+        en: 'laboratory test for the declaration of conformity'
+    },
+    'exportExtraPreset_quarantineConclusion': {
+        zh: '检疫证明',
+        ru: 'Карантинное заключение',
+        en: 'quarantine Conclusion'
+    },
+    'exportExtraPreset_fumigation': {
+        zh: '熏蒸费用',
+        ru: 'Фумигация',
+        en: 'fumigation'
+    },
+    'exportExtraPreset_safetyQualityCert': {
+        zh: '安全与质量证书',
+        ru: 'Сертификат безопасности и качества',
+        en: 'certificate of safety and quality'
+    },
+    'exportExtraPreset_customsBroker': {
+        zh: '出口报关费',
+        ru: 'Таможенное оформление экспорта / брокер',
+        en: 'customs declaration /broker'
+    },
+    'exportExtraPreset_certificateOfOrigin': {
+        zh: '原产地证书',
+        ru: 'Сертификат происхождения / CT-1',
+        en: 'Certificate of Origin / CT-1'
+    },
+    'exportExtraPreset_sdizOperational': {
+        zh: 'SDIZ操作费',
+        ru: 'Операционные расходы SDIZ',
+        en: 'SDIZ operational cost'
+    },
+    'exportExtraPreset_myExportOperational': {
+        zh: 'my export操作费',
+        ru: 'Операционные расходы My Export',
+        en: 'my export operational cost'
     }
 };
 

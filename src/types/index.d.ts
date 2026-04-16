@@ -30,10 +30,22 @@ export interface ExtraItem {
 
 export interface OverseaExtra extends ExtraItem {
   unit: 'RUB/ton' | 'RUB/container';
+  /** 杂费项增值税率（%），仅用于展示，不参与总价计算 */
+  vatRate?: number;
 }
 
 export interface DomesticExtra extends ExtraItem {
   unit: 'CNY/ton' | 'CNY/柜';
+}
+
+/** 海外段：农场采购价 + 短驳（可多组叠加） */
+export interface OverseaFarmHaulModule {
+  id: number;
+  farmPriceRub: number;
+  shortHaulDistanceKm: number;
+  shortHaulPricePerKmPerContainer: number;
+  /** 短驳费增值税率（%），仅展示 */
+  shortHaulVatRate: number;
 }
 
 // 计算参数
@@ -46,6 +58,8 @@ export interface PricingParams {
   farmPriceRub?: number;
   shortHaulDistanceKm?: number;
   shortHaulPricePerKmPerContainer?: number;
+  /** 若设置则覆盖由公里数算出的每吨短驳费（用于多段短驳汇总） */
+  shortHaulFeePerTonOverride?: number;
   exportExtras?: OverseaExtra[];
   
   // 海外段-期望盈利与关税计算选项

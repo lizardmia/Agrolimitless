@@ -2,28 +2,36 @@
  * OverseaSection 组件的类型声明
  */
 import type React from 'react';
-import type { OverseaExtra } from '../types/index.d';
+import type { OverseaExtra, OverseaFarmHaulModule } from '../types/index.d';
 
 export interface OverseaSectionProps {
-    farmPriceRub: number;
-    setFarmPriceRub: (value: number) => void;
-    overseaLogistics1: number;
-    setOverseaLogistics1: (value: number) => void;
-    unit1: 'RUB/t' | 'RUB/柜';
-    setUnit1: (value: 'RUB/t' | 'RUB/柜') => void;
-    overseaLogistics2: number;
-    setOverseaLogistics2: (value: number) => void;
-    unit2: 'RUB/t' | 'RUB/柜';
-    setUnit2: (value: 'RUB/t' | 'RUB/柜') => void;
+    overseaModules: OverseaFarmHaulModule[];
+    setOverseaModules: React.Dispatch<React.SetStateAction<OverseaFarmHaulModule[]>>;
     exportExtras: OverseaExtra[];
     addExportExtra: () => void;
     deleteExportExtra: (id: number) => void;
     updateExportExtra: (id: number, field: string, value: any) => void;
     toggleExportExtraUnit: (id: number) => void;
+    tonsPerContainer: number;
     russianArrivalPriceRub: number;
     russianArrivalPriceCny: number;
-    exportVatRebateRub?: number;  // 出口增值税退税（RUB/t）
-    exportDutyRub?: number;  // 出口关税（RUB/t）
+    baseRussianArrivalPriceRub?: number;
+    exportVatRebateRub?: number;
+    exportDutyRub?: number;
+    exportDutyRate?: number;
+    exportVatRate?: number;
+    expectedProfitPercent?: number;
+    setExpectedProfitPercent?: (n: number) => void;
+    includeShortHaulInDuty?: boolean;
+    setIncludeShortHaulInDuty?: (b: boolean) => void;
+    exportPriceRub?: number;
+    setExportPriceRub?: (n: number) => void;
+    suggestedFarmPriceRub?: number;
+    suggestedExportPriceRub?: number;
+    suggestedExportDutyRub?: number;
+    effectiveDutyBaseRub?: number;
+    language?: string;
+    t?: (key: string) => string;
 }
 
 export declare function OverseaSection(props: OverseaSectionProps): JSX.Element;

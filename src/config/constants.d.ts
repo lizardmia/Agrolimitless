@@ -1,7 +1,7 @@
 /**
  * constants.js 的类型声明文件
  */
-import type { OverseaExtra, DomesticExtra } from '../types/index.d';
+import type { OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
 
 export interface DefaultValues {
     exchangeRate: number;
@@ -12,6 +12,7 @@ export interface DefaultValues {
     farmPriceRub: number;
     shortHaulDistanceKm: number;
     shortHaulPricePerKmPerContainer: number;
+    overseaModules: OverseaFarmHaulModule[];
     exportExtras: OverseaExtra[];
     dutyRate: number;
     vatRate: number;

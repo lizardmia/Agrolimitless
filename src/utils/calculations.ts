@@ -26,6 +26,7 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
         farmPriceRub = 35000,
         shortHaulDistanceKm = 100,
         shortHaulPricePerKmPerContainer = 6.73,
+        shortHaulFeePerTonOverride,
         exportExtras = [],
         
         // 税收政策
@@ -68,10 +69,16 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
     const tpc = tonsPerContainer || 1;
     
     // === 海外段计算 ===
-    // 短驳费计算：公里数 * 2 * 每公里每柜价格（RUB/柜）
-    const shortHaulFeePerContainer = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer;
-    // 转换为每吨价格
-    const shortHaulFeePerTon = shortHaulFeePerContainer / tpc;
+    // 短驳费：默认由公里数推算；多段短驳汇总时可传入 shortHaulFeePerTonOverride（RUB/t）
+    let shortHaulFeePerTon =
+        (shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer) / tpc;
+    if (
+        shortHaulFeePerTonOverride !== undefined &&
+        shortHaulFeePerTonOverride !== null &&
+        Number.isFinite(Number(shortHaulFeePerTonOverride))
+    ) {
+        shortHaulFeePerTon = Number(shortHaulFeePerTonOverride);
+    }
     
     const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {
         const value = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
@@ -103,41 +110,27 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
         }
         if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
     }
-    // 实际用于关税计算的出口价：优先用 exportPriceRub（App 层自动或手动填入），无则用建议值，再无则 0
-    const effectiveExportPriceForDuty = exportPriceRub > 0
-        ? exportPriceRub
-        : (suggestedExportPriceRub > 0 ? suggestedExportPriceRub : 0);
-
     // === 出口板块政策计算 ===
-    let exportVatRebateRub = 0;  // 出口增值税退税（RUB/t）
-    let exportDutyRub = 0;  // 出口关税（RUB/t）
-    let adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
-    
+    // 海外到站预估（展示与下游利润口径）= 农场采购价 + 短驳费/t + 海外杂费合计
+    let exportVatRebateRub = 0;  // 仅用于明细展示
+    let exportDutyRub = 0;
+    const adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
+
     if (exportPolicyMode === 'no-duty') {
-        // 规则1：没有关税，只有增值税退税
         if (exportVatRate > 0) {
             const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
             exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
-            adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub - exportVatRebateRub;
         }
     } else if (exportPolicyMode === 'with-duty') {
-        // 规则2：有关税
         if (exportVatRate > 0) {
             const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
             exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
         }
-        // 关税 = 建议出口价格 × 关税税率（含/不含短驳取决于选项）
-        const dutyBase = includeShortHaulInDuty
-            ? effectiveExportPriceForDuty
-            : effectiveExportPriceForDuty - shortHaulFeePerTon;
-        exportDutyRub = Math.max(0, dutyBase) * (exportDutyRate / 100);
-        // 海外到站预估 = 原值 - 增值税退税 + 关税
-        adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub - exportVatRebateRub + exportDutyRub;
-    } else if (exportPolicyMode === 'planned') {
-        adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
+        // 出口关税 = 海外到站预估（基础合计）× 出口关税税率
+        exportDutyRub = baseRussianArrivalPriceRub * (exportDutyRate / 100);
     }
-    
-    const russianArrivalPriceRub = adjustedRussianArrivalPriceRub;
+
+    const russianArrivalPriceRub = baseRussianArrivalPriceRub;
     const russianArrivalPriceCny = russianArrivalPriceRub / (exchangeRate || 1);
     const adjustedRussianArrivalPriceCny = russianArrivalPriceCny;
     
@@ -147,25 +140,13 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
     
     const overseaProfitRubCalculated = normalizedImportPriceRubPerTon - russianArrivalPriceRub;
     
-    // 建议出口价对应的关税金额（RUB/t）
-    const suggestedExportDutyRub = suggestedExportPriceRub > 0
-        ? (includeShortHaulInDuty
-            ? suggestedExportPriceRub * r
-            : (suggestedExportPriceRub - shortHaulFeePerTon) * r)
-        : 0;
+    // 建议出口价对应的关税（同税率 × 建议出口价）
+    const suggestedExportDutyRub = suggestedExportPriceRub > 0 ? suggestedExportPriceRub * r : 0;
 
     const suggestedFarmPriceRub = 0;
 
-    // === 关税计算基础价（出口价格 or 进口结算货值）===
-    // 如果用户填了出口价格(exportPriceRub > 0)，用它作为关税基础；否则用进口结算货值
-    // 含短驳选项：是否在关税基础中包含短驳费
-    const effectiveDutyBaseRub = (() => {
-        let base = exportPriceRub > 0 ? exportPriceRub : normalizedImportPriceRubPerTon;
-        if (includeShortHaulInDuty) {
-            base = base + shortHaulFeePerTon;
-        }
-        return base;
-    })();
+    // 出口关税计税基础展示：与海外到站预估（基础合计）一致
+    const effectiveDutyBaseRub = baseRussianArrivalPriceRub;
 
     // === 国内段计算 ===
     const importValueCny = normalizedImportPriceRubPerTon / (exchangeRate || 1);
@@ -240,26 +221,29 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
 export function reverseFarmPriceFromArrivalPrice(params: {
     targetArrivalPriceCny: number;  // 目标海外到站价格（CNY/t）
     exchangeRate: number;
-    shortHaulDistanceKm: number;
-    shortHaulPricePerKmPerContainer: number;
+    shortHaulDistanceKm?: number;
+    shortHaulPricePerKmPerContainer?: number;
+    /** 每吨短驳费（RUB/t），优先于公里数推算 */
+    shortHaulFeePerTon?: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
 }): number {
     const {
         targetArrivalPriceCny,
         exchangeRate,
-        shortHaulDistanceKm,
-        shortHaulPricePerKmPerContainer,
+        shortHaulDistanceKm = 0,
+        shortHaulPricePerKmPerContainer = 0,
+        shortHaulFeePerTon: shortHaulFeePerTonParam,
         exportExtras,
         tonsPerContainer
     } = params;
     
     const tpc = tonsPerContainer || 1;
     
-    // 短驳费计算：公里数 * 2 * 每公里每柜价格（RUB/柜）
-    const shortHaulFeePerContainer = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer;
-    // 转换为每吨价格
-    const shortHaulFeePerTon = shortHaulFeePerContainer / tpc;
+    const shortHaulFeePerTon =
+        shortHaulFeePerTonParam !== undefined && shortHaulFeePerTonParam !== null && Number.isFinite(Number(shortHaulFeePerTonParam))
+            ? Number(shortHaulFeePerTonParam)
+            : (shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer) / tpc;
     
     // 计算海外杂费合计
     const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {
@@ -286,13 +270,15 @@ export function reverseFarmPriceFromBasePrice(params: {
     targetBaseLandingPriceCny: number;  // 目标基础成本价
     exchangeRate: number;
     usdCnyRate: number;
-    shortHaulDistanceKm: number;
-    shortHaulPricePerKmPerContainer: number;
+    shortHaulDistanceKm?: number;
+    shortHaulPricePerKmPerContainer?: number;
+    shortHaulFeePerTon?: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     dutyRate: number;
     vatRate: number;
     intlFreightOverseasUsd: number;
     intlFreightDomesticUsd: number;
+    insuranceRate?: number;
     domesticShortHaulCny: number;
     domesticExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
@@ -301,16 +287,15 @@ export function reverseFarmPriceFromBasePrice(params: {
         targetBaseLandingPriceCny,
         exchangeRate,
         usdCnyRate,
-        overseaLogistics1,
-        unit1,
-        overseaLogistics2,
-        unit2,
+        shortHaulDistanceKm = 0,
+        shortHaulPricePerKmPerContainer = 0,
+        shortHaulFeePerTon: shortHaulFeePerTonParam,
         exportExtras,
         dutyRate,
         vatRate,
         intlFreightOverseasUsd,
         intlFreightDomesticUsd,
-        insuranceRate,
+        insuranceRate = 0,
         domesticShortHaulCny,
         domesticExtras,
         tonsPerContainer
@@ -329,8 +314,8 @@ export function reverseFarmPriceFromBasePrice(params: {
     }, 0);
     const domesticLogisticsCnyPerTon = domesticLogisticsBase + dynamicExtrasTotal;
     
-    // 解方程：targetBaseLandingPriceCny = (importValueCny + intlFreightOverseasCnyPerTon) * (1 + dutyRate/100) * (1 + vatRate/100) + intlFreightDomesticCnyPerTon + domesticLogisticsCnyPerTon
-    const taxFactor = (1 + dutyRate / 100) * (1 + vatRate / 100);
+    // 与 calculations.js 一致：含税因子含保费率
+    const taxFactor = (1 + insuranceRate) * (1 + dutyRate / 100) * (1 + vatRate / 100);
     const importValueCny = (targetBaseLandingPriceCny - intlFreightDomesticCnyPerTon - domesticLogisticsCnyPerTon) / taxFactor - intlFreightOverseasCnyPerTon;
     
     if (importValueCny <= 0) {
@@ -341,10 +326,10 @@ export function reverseFarmPriceFromBasePrice(params: {
     const importPriceRub = importValueCny * exchangeRate;
     
     // 假设进口结算货值 ≈ 海外到站价格（简化假设）
-    // 短驳费计算：公里数 * 2 * 每公里每柜价格（RUB/柜）
-    const shortHaulFeePerContainer = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer;
-    // 转换为每吨价格
-    const shortHaulFeePerTon = shortHaulFeePerContainer / tpc;
+    const shortHaulFeePerTon =
+        shortHaulFeePerTonParam !== undefined && shortHaulFeePerTonParam !== null && Number.isFinite(Number(shortHaulFeePerTonParam))
+            ? Number(shortHaulFeePerTonParam)
+            : (shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer) / tpc;
     
     // 计算海外杂费合计
     const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {

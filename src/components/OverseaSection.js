@@ -1,13 +1,19 @@
 /**
  * OverseaSection 组件 - 海外段参数输入
  */
+
+/** 价内税：从含税金额中拆分出的增值税（仅展示，不参与到站预估等计算） */
+function vatFromInclusiveRub(amountRub, ratePercent) {
+    const a = Number(amountRub) || 0;
+    const r = Number(ratePercent) || 0;
+    if (a <= 0 || r <= 0) return 0;
+    const rp = r / 100;
+    return (a * rp) / (1 + rp);
+}
+
 function OverseaSection({
-    farmPriceRub,
-    setFarmPriceRub,
-    shortHaulDistanceKm,
-    setShortHaulDistanceKm,
-    shortHaulPricePerKmPerContainer,
-    setShortHaulPricePerKmPerContainer,
+    overseaModules,
+    setOverseaModules,
     exportExtras,
     addExportExtra,
     deleteExportExtra,
@@ -20,6 +26,8 @@ function OverseaSection({
     exportVatRebateRub = 0,
     exportDutyRub = 0,
     exportDutyRate = 0,
+    /** 与出口板块政策「出口增值税 %」挂钩，用于农场采购价价内税展示 */
+    exportVatRate = 10,
     // 新增：期望盈利、短驳关税选项、出口价格
     expectedProfitPercent = 0,
     setExpectedProfitPercent,
@@ -41,13 +49,59 @@ function OverseaSection({
     
     // 组件内计算每吨成本基础（用于每吨期望盈利显示）
     const tpc = tonsPerContainer || 1;
-    const shortHaulFeePerTonDisplay = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
+    const modList = Array.isArray(overseaModules) ? overseaModules : [];
+
+    const updateModule = (id, partial) => {
+        if (!setOverseaModules) return;
+        setOverseaModules((prev) => prev.map((m) => (m.id === id ? { ...m, ...partial } : m)));
+    };
+    const addModule = () => {
+        if (!setOverseaModules) return;
+        setOverseaModules((prev) => [
+            ...prev,
+            { id: Date.now(), farmPriceRub: 0, shortHaulDistanceKm: 0, shortHaulPricePerKmPerContainer: 0, shortHaulVatRate: 0 }
+        ]);
+    };
+    const removeModule = (id) => {
+        if (!setOverseaModules) return;
+        setOverseaModules((prev) => (prev.length <= 1 ? prev : prev.filter((m) => m.id !== id)));
+    };
+
+    const farmPriceRubSum = modList.reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0);
+    const shortHaulFeePerTonDisplay = modList.reduce((s, m) => {
+        const km = Number(m.shortHaulDistanceKm) || 0;
+        const pp = Number(m.shortHaulPricePerKmPerContainer) || 0;
+        return s + (km * 2 * pp) / tpc;
+    }, 0);
     const exportExtrasTotalDisplay = exportExtras.reduce((sum, item) => {
         const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
         return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
     }, 0);
-    // 成本 base = 农场采购价 + 短驳费/t + 杂费/t
-    const costBase = farmPriceRub + shortHaulFeePerTonDisplay + exportExtrasTotalDisplay;
+    const costBase = farmPriceRubSum + shortHaulFeePerTonDisplay + exportExtrasTotalDisplay;
+
+    const farmPurchaseVatRatePct = Math.max(0, Number(exportVatRate) || 0);
+    let farmVatDisplaySum = 0;
+    let shortHaulVatDisplaySum = 0;
+    modList.forEach((m) => {
+        const fp = Number(m.farmPriceRub) || 0;
+        if (fp > 0 && farmPurchaseVatRatePct > 0) {
+            farmVatDisplaySum += vatFromInclusiveRub(fp, farmPurchaseVatRatePct);
+        }
+        const km = Number(m.shortHaulDistanceKm) || 0;
+        const pp = Number(m.shortHaulPricePerKmPerContainer) || 0;
+        const shPerTon = (km * 2 * pp) / tpc;
+        const shVr = Number(m.shortHaulVatRate) || 0;
+        if (shPerTon > 0 && shVr > 0) {
+            shortHaulVatDisplaySum += vatFromInclusiveRub(shPerTon, shVr);
+        }
+    });
+    const extrasVatDisplaySum = exportExtras.reduce((sum, item) => {
+        const num = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
+        const perTon = item.unit === 'RUB/ton' ? num : num / tpc;
+        const vr = item.vatRate === undefined || item.vatRate === '' ? 0 : Number(item.vatRate) || 0;
+        return sum + vatFromInclusiveRub(perTon, vr);
+    }, 0);
+    const displayVatSumRub = farmVatDisplaySum + shortHaulVatDisplaySum + extrasVatDisplaySum;
     // 每吨期望盈利 = 建议出口价 - costBase
     const profitPerTon = suggestedExportPriceRub > 0
         ? suggestedExportPriceRub - costBase
@@ -95,6 +149,7 @@ function OverseaSection({
         }
     }, [profitPerTon, expectedProfitPercent]);
     const [showLossRatioTooltip, setShowLossRatioTooltip] = useState(false);
+    const [openVatDetail, setOpenVatDetail] = useState(null);
     const tooltipRef = useRef(null);
     
     // 点击外部区域关闭提示框
@@ -120,9 +175,7 @@ function OverseaSection({
         return value.toLocaleString(undefined, { maximumFractionDigits });
     });
     
-    // 计算短驳费（每吨，RUB/t）
-    const shortHaulFeePerContainer = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer;
-    const shortHaulFeePerTon = tonsPerContainer > 0 ? shortHaulFeePerContainer / tonsPerContainer : 0;
+    const shortHaulFeePerTon = shortHaulFeePerTonDisplay;
     
     // 计算物损比
     const lossRatio = russianArrivalPriceRub > 0 ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100 : 0;
@@ -157,61 +210,191 @@ function OverseaSection({
             )
         ),
         h('div', { className: "space-y-2" },
-            h('div', null,
-                h('label', { className: "text-[10px] text-slate-500 font-bold uppercase tracking-tighter" }, `${t('farmPurchasePrice')} (RUB/t)`),
-                h('input', {
-                    type: "number",
-                    value: farmPriceRub === 0 ? '' : farmPriceRub,
-                    onChange: e => {
-                        const val = e.target.value;
-                        setFarmPriceRub(val === '' ? 0 : Number(val));
-                    },
-                    placeholder: "0",
-                    className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
-                })
-            ),
-            h('div', { className: "bg-white p-3 rounded-xl border border-orange-200 shadow-sm" },
-                h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, t('shortHaulFee')),
-                h('div', { className: "grid grid-cols-2 gap-3" },
-                    h('div', null,
-                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('distanceKm')),
-                        h('input', {
-                            type: "number",
-                            value: shortHaulDistanceKm === 0 ? '' : shortHaulDistanceKm,
-                            onChange: e => {
-                                const val = e.target.value;
-                                setShortHaulDistanceKm(val === '' ? 0 : Number(val));
-                            },
-                            placeholder: "0",
-                            className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
-                        })
+            h('p', { className: "text-[9px] text-slate-500 italic" }, t('vatDisplayOnlyNote')),
+            modList.map((mod, modIdx) => {
+                const km = Number(mod.shortHaulDistanceKm) || 0;
+                const pp = Number(mod.shortHaulPricePerKmPerContainer) || 0;
+                const feePerContainer = km * 2 * pp;
+                const shPerTon = feePerContainer / tpc;
+                const farmP = Number(mod.farmPriceRub) || 0;
+                const shVat = Number(mod.shortHaulVatRate) || 0;
+                const showFarmD = openVatDetail === `${mod.id}-farm`;
+                const showHaulD = openVatDetail === `${mod.id}-haul`;
+                const vatPerTonHaul = shPerTon > 0 && shVat > 0 ? vatFromInclusiveRub(shPerTon, shVat) : 0;
+                return h('div', { key: mod.id, className: "rounded-xl border border-orange-200 bg-white/70 p-3 space-y-2 shadow-sm" },
+                    modList.length > 1 && h('div', { className: "flex justify-between items-center mb-1" },
+                        h('span', { className: "text-[10px] font-bold text-orange-700" },
+                            `${t('farmHaulModuleTitle')} ${modIdx + 1}`
+                        ),
+                        h('button', {
+                            type: 'button',
+                            onClick: () => removeModule(mod.id),
+                            className: "text-[10px] text-rose-500 hover:text-rose-700 font-bold"
+                        }, t('removeFarmHaulModule'))
                     ),
                     h('div', null,
-                        h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('pricePerKmPerContainer')),
+                        h('label', { className: "text-[10px] text-slate-500 font-bold uppercase tracking-tighter" }, `${t('farmPurchasePrice')} (RUB/t)`),
                         h('input', {
                             type: "number",
-                            value: shortHaulPricePerKmPerContainer === 0 ? '' : shortHaulPricePerKmPerContainer,
+                            value: farmP === 0 ? '' : farmP,
                             onChange: e => {
                                 const val = e.target.value;
-                                setShortHaulPricePerKmPerContainer(val === '' ? 0 : Number(val));
+                                updateModule(mod.id, { farmPriceRub: val === '' ? 0 : Number(val) });
                             },
                             placeholder: "0",
                             className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
-                        })
-                    )
-                ),
-                h('div', { className: "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100" },
-                    h('div', { className: "flex justify-between items-center" },
-                        h('span', { className: "text-[9px] text-orange-600 font-bold" }, `${t('shortHaulFeeResult')}:`),
-                        h('span', { className: "text-sm font-black text-orange-800" },
-                            formatCurrencyLocal(shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer, { maximumFractionDigits: 2 }),
-                            ` ${t('rubPerContainer')}`
+                        }),
+                        farmP > 0 && h('div', { className: "mt-1.5 p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 space-y-1" },
+                            h('div', { className: "flex justify-between items-center gap-2 text-[10px]" },
+                                h('span', { className: "text-emerald-800 font-bold" },
+                                    `${t('vatDisplayFarm')} (${t('vatRateLinkedExport')}: ${farmPurchaseVatRatePct}%)`
+                                ),
+                                h('span', { className: "text-emerald-700 font-black" },
+                                    farmPurchaseVatRatePct > 0
+                                        ? [
+                                            formatCurrencyLocal(vatFromInclusiveRub(farmP, farmPurchaseVatRatePct), { maximumFractionDigits: 2 }),
+                                            ` ${t('rubPerTon')}`
+                                        ]
+                                        : h('span', { className: "text-slate-400 font-normal" }, t('vatRateExportUnsetHint'))
+                                )
+                            ),
+                            farmPurchaseVatRatePct > 0 && h('button', {
+                                type: 'button',
+                                onClick: () => setOpenVatDetail(showFarmD ? null : `${mod.id}-farm`),
+                                className: "text-[9px] text-emerald-600 underline font-bold"
+                            }, showFarmD ? t('vatCalcToggleHide') : t('vatCalcToggleShow')),
+                            farmPurchaseVatRatePct > 0 && showFarmD && h('div', { className: "pt-1 border-t border-emerald-200 text-[8px] text-emerald-900 space-y-1 leading-relaxed" },
+                                h('p', { className: "font-bold text-emerald-800" }, t('vatCalcDetailTitle')),
+                                h('p', null, t('vatCalcStepFarmTpl').replace(/\{rate\}/g, String(farmPurchaseVatRatePct))),
+                                h('p', null,
+                                    '= ',
+                                    formatCurrencyLocal(farmP, { maximumFractionDigits: 2 }),
+                                    ` × ${farmPurchaseVatRatePct}% ÷ (100% + ${farmPurchaseVatRatePct}%) = `,
+                                    formatCurrencyLocal(vatFromInclusiveRub(farmP, farmPurchaseVatRatePct), { maximumFractionDigits: 2 }),
+                                    ` ${t('rubPerTon')}`
+                                )
+                            )
                         )
                     ),
-                    h('p', { className: "text-[8px] text-slate-400 mt-1" },
-                        `${t('calculationFormula')}: ${t('distanceKm')} × 2 × ${t('pricePerKmPerContainer')}`
+                    h('div', { className: "bg-white p-3 rounded-xl border border-orange-200 shadow-sm" },
+                        h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, t('shortHaulFee')),
+                        h('div', { className: "grid grid-cols-2 gap-3" },
+                            h('div', null,
+                                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('distanceKm')),
+                                h('input', {
+                                    type: "number",
+                                    value: km === 0 ? '' : km,
+                                    onChange: e => {
+                                        const val = e.target.value;
+                                        updateModule(mod.id, { shortHaulDistanceKm: val === '' ? 0 : Number(val) });
+                                    },
+                                    placeholder: "0",
+                                    className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                })
+                            ),
+                            h('div', null,
+                                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('pricePerKmPerContainer')),
+                                h('input', {
+                                    type: "number",
+                                    value: pp === 0 ? '' : pp,
+                                    onChange: e => {
+                                        const val = e.target.value;
+                                        updateModule(mod.id, { shortHaulPricePerKmPerContainer: val === '' ? 0 : Number(val) });
+                                    },
+                                    placeholder: "0",
+                                    className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                })
+                            )
+                        ),
+                        h('div', { className: "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100" },
+                            h('div', { className: "flex justify-between items-center" },
+                                h('span', { className: "text-[9px] text-orange-600 font-bold" }, `${t('shortHaulFeeResult')}:`),
+                                h('span', { className: "text-sm font-black text-orange-800" },
+                                    formatCurrencyLocal(feePerContainer, { maximumFractionDigits: 2 }),
+                                    ` ${t('rubPerContainer')}`
+                                )
+                            ),
+                            h('p', { className: "text-[8px] text-slate-400 mt-1" },
+                                `${t('calculationFormula')}: ${t('distanceKm')} × 2 × ${t('pricePerKmPerContainer')}`
+                            )
+                        ),
+                        h('div', { className: "mt-2 space-y-1.5" },
+                            h('label', { className: "text-[9px] text-slate-600 font-bold block" }, `${t('shortHaulVatRateLabel')} (%)`),
+                            h('div', { className: "flex items-center gap-2" },
+                                h('input', {
+                                    type: "number",
+                                    min: 0,
+                                    step: 0.1,
+                                    value: shVat === 0 ? '' : shVat,
+                                    onChange: (e) => {
+                                        const v = e.target.value;
+                                        if (v === '') updateModule(mod.id, { shortHaulVatRate: 0 });
+                                        else {
+                                            const n = parseFloat(v);
+                                            if (!isNaN(n) && n >= 0) updateModule(mod.id, { shortHaulVatRate: n });
+                                        }
+                                    },
+                                    className: "w-24 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-orange-200 outline-none",
+                                    placeholder: "0"
+                                }),
+                                h('span', { className: "text-[10px] text-slate-500" }, '%')
+                            ),
+                            shPerTon > 0 && shVat > 0 && h('div', { className: "text-[10px] p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 space-y-1" },
+                                h('div', { className: "flex justify-between items-center gap-2" },
+                                    h('span', { className: "text-emerald-800 font-bold" }, t('vatPerTonShortHaul')),
+                                    h('span', { className: "text-emerald-700 font-black" },
+                                        formatCurrencyLocal(vatPerTonHaul, { maximumFractionDigits: 2 }),
+                                        ` ${t('rubPerTon')}`
+                                    )
+                                ),
+                                h('button', {
+                                    type: 'button',
+                                    onClick: () => setOpenVatDetail(showHaulD ? null : `${mod.id}-haul`),
+                                    className: "text-[9px] text-emerald-600 underline font-bold"
+                                }, showHaulD ? t('vatCalcToggleHide') : t('vatCalcToggleShow')),
+                                showHaulD && h('div', { className: "pt-1 border-t border-emerald-200 text-[8px] text-emerald-900 space-y-1 leading-relaxed" },
+                                    h('p', { className: "font-bold text-emerald-800" }, t('vatCalcDetailTitle')),
+                                    h('p', null, `① ${t('vatCalcStep1ShortHaul')}`),
+                                    h('p', null,
+                                        '= ',
+                                        formatCurrencyLocal(km, { maximumFractionDigits: 0 }),
+                                        ' × 2 × ',
+                                        formatCurrencyLocal(pp, { maximumFractionDigits: 2 }),
+                                        ' = ',
+                                        formatCurrencyLocal(feePerContainer, { maximumFractionDigits: 2 }),
+                                        ` ${t('rubPerContainer')}`
+                                    ),
+                                    h('p', null, `② ${t('vatCalcStep2PerTon')}`),
+                                    h('p', null,
+                                        '= ',
+                                        formatCurrencyLocal(feePerContainer, { maximumFractionDigits: 2 }),
+                                        ` ${t('rubPerContainer')} ÷ `,
+                                        String(tpc),
+                                        ' = ',
+                                        formatCurrencyLocal(shPerTon, { maximumFractionDigits: 2 }),
+                                        ` ${t('rubPerTon')}`
+                                    ),
+                                    h('p', null, `③ ${t('vatCalcStep3Inclusive')}`),
+                                    h('p', null,
+                                        '= ',
+                                        formatCurrencyLocal(shPerTon, { maximumFractionDigits: 2 }),
+                                        ` × ${shVat}% ÷ (100% + ${shVat}%) = `,
+                                        formatCurrencyLocal(vatPerTonHaul, { maximumFractionDigits: 2 }),
+                                        ` ${t('rubPerTon')}`
+                                    )
+                                )
+                            )
+                        )
                     )
-                )
+                );
+            }),
+            h('button', {
+                type: 'button',
+                onClick: addModule,
+                className: "w-full bg-white/60 p-2 rounded-xl border border-dashed border-orange-300 hover:border-orange-400 hover:bg-orange-50/50 transition-all shadow-sm flex items-center justify-center gap-2 text-orange-600 hover:text-orange-700"
+            },
+                h(Icon, { name: 'Plus', size: 14 }),
+                h('span', { className: "text-[10px] font-black" }, t('addFarmHaulModule'))
             ),
             h('div', { className: "space-y-2" },
                 // 添加按钮（固定在顶部）
@@ -256,7 +439,57 @@ function OverseaSection({
                                     onClick: () => toggleExportExtraUnit(item.id),
                                     className: `px-2 py-1.5 rounded-lg text-[10px] font-black border transition-all ${item.unit === 'RUB/container' ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50'}`
                                 }, item.unit === 'RUB/container' ? t('rubPerContainer') : t('rubPerTon'))
-                            )
+                            ),
+                            (() => {
+                                const num = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
+                                const perTon = item.unit === 'RUB/ton' ? num : num / tpc;
+                                const vr = item.vatRate === undefined || item.vatRate === '' ? 0 : Number(item.vatRate) || 0;
+                                const extraVat = vatFromInclusiveRub(perTon, vr);
+                                return h('div', { className: "space-y-1" },
+                                    h('div', { className: "flex flex-wrap gap-2 items-center" },
+                                        h('label', { className: "text-[9px] text-slate-500 font-bold" }, `${t('extraVatRateLabel')} (%)`),
+                                        h('input', {
+                                            type: "number",
+                                            min: 0,
+                                            step: 0.1,
+                                            value: vr === 0 ? '' : vr,
+                                            onChange: (e) => {
+                                                const v = e.target.value;
+                                                if (v === '') updateExportExtra(item.id, 'vatRate', 0);
+                                                else {
+                                                    const n = parseFloat(v);
+                                                    if (!isNaN(n) && n >= 0) updateExportExtra(item.id, 'vatRate', n);
+                                                }
+                                            },
+                                            className: "w-20 p-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none",
+                                            placeholder: "0"
+                                        }),
+                                        perTon > 0 && vr > 0 && h('span', { className: "text-[10px] text-emerald-700 font-bold ml-auto" },
+                                            `${t('vatPerTonExtra')}: `,
+                                            formatCurrencyLocal(extraVat, { maximumFractionDigits: 2 }),
+                                            ` ${t('rubPerTon')}`
+                                        )
+                                    ),
+                                    perTon > 0 && vr > 0 && h('details', { className: "text-[8px] text-emerald-900 border-t border-emerald-100 pt-1 mt-1" },
+                                        h('summary', { className: "cursor-pointer text-emerald-600 font-bold" }, t('vatCalcDetailTitle')),
+                                        item.unit === 'RUB/container' && h('p', { className: "mt-1 text-slate-600" },
+                                            `① ${t('vatCalcExtraPerTonFromContainer')}: `,
+                                            formatCurrencyLocal(num, { maximumFractionDigits: 2 }),
+                                            ` ${t('rubPerContainer')} ÷ ${tpc} = `,
+                                            formatCurrencyLocal(perTon, { maximumFractionDigits: 2 }),
+                                            ` ${t('rubPerTon')}`
+                                        ),
+                                        h('p', { className: "mt-1" }, t('vatCalcStepExtra')),
+                                        h('p', null,
+                                            '= ',
+                                            formatCurrencyLocal(perTon, { maximumFractionDigits: 2 }),
+                                            ` × ${vr}% ÷ (100% + ${vr}%) = `,
+                                            formatCurrencyLocal(extraVat, { maximumFractionDigits: 2 }),
+                                            ` ${t('rubPerTon')}`
+                                        )
+                                    )
+                                );
+                            })()
                         )
                     )
                 )
@@ -315,14 +548,12 @@ function OverseaSection({
                                 )
                             )
                         ),
-                        // 两个版本的海外到站预估
+                        // 海外到站预估（农场采购价 + 短驳费 + 海外杂费合计）
                         h('div', { className: "flex flex-col gap-2" },
-                            // 版本1：含增值税退税（调整后）
                             h('div', { className: "bg-orange-50 rounded-lg px-2 py-1.5 border border-orange-100" },
-                                h('p', { className: "text-[9px] text-orange-500 font-bold mb-0.5" }, t('overseasArrivalWithVat')),
                                 h('div', { className: "flex items-baseline gap-1" },
                                     h('span', { className: "text-xl font-black text-orange-700 leading-none" },
-                                        formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 0 })
+                                        formatCurrencyLocal(baseRussianArrivalPriceRub ?? russianArrivalPriceRub, { maximumFractionDigits: 0 })
                                     ),
                                     h('span', { className: "text-[9px] text-slate-400 font-normal" }, ` ${t('rubPerTon')}`)
                                 ),
@@ -331,17 +562,6 @@ function OverseaSection({
                                     formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
                                 )
                             ),
-                            // 版本2：不含增值税退税（原始价格）
-                            baseRussianArrivalPriceRub !== undefined && baseRussianArrivalPriceRub !== russianArrivalPriceRub && h('div', { className: "bg-slate-50 rounded-lg px-2 py-1.5 border border-slate-200" },
-                                h('p', { className: "text-[9px] text-slate-500 font-bold mb-0.5" }, t('overseasArrivalWithoutVat')),
-                                h('div', { className: "flex items-baseline gap-1" },
-                                    h('span', { className: "text-lg font-bold text-slate-600 leading-none" },
-                                        formatCurrencyLocal(baseRussianArrivalPriceRub, { maximumFractionDigits: 0 })
-                                    ),
-                                    h('span', { className: "text-[9px] text-slate-400 font-normal" }, ` ${t('rubPerTon')}`)
-                                )
-                            ),
-                            // 物损比
                             h('p', { className: "text-xs font-bold text-orange-600" },
                                 `${t('lossRatio')}: `,
                                 h('span', { className: "text-orange-700" },
@@ -352,17 +572,16 @@ function OverseaSection({
                         )
                     )
                 ),
-                // 增值税、关税信息
+                // 增值税总和、关税信息
                 h('div', { className: "mt-3 pt-3 border-t border-slate-200 space-y-2" },
-                    // 增值税
                     h('div', { className: "flex justify-between items-center" },
                         h('div', { className: "flex-1" },
-                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('vatTax')),
-                            h('p', { className: "text-[8px] text-slate-400" }, t('vatFormula'))
+                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('vatSumTotal')),
+                            h('p', { className: "text-[8px] text-slate-400" }, t('vatSumFormula'))
                         ),
                         h('div', { className: "text-right" },
                             h('p', { className: "text-sm font-bold text-green-600" },
-                                formatCurrencyLocal(exportVatRebateRub, { maximumFractionDigits: 2 }),
+                                formatCurrencyLocal(displayVatSumRub, { maximumFractionDigits: 2 }),
                                 h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
                             )
                         )
@@ -380,15 +599,15 @@ function OverseaSection({
                             )
                         )
                     ),
-                    // 增值税减去关税
+                    // 增值税总和减去关税
                     h('div', { className: "flex justify-between items-center pt-2 border-t border-slate-200" },
                         h('div', { className: "flex-1" },
                             h('p', { className: "text-[9px] text-slate-600 font-bold mb-1" }, t('vatMinusDuty')),
-                            h('p', { className: "text-[8px] text-slate-400" }, t('vatMinusDutyFormula'))
+                            h('p', { className: "text-[8px] text-slate-400" }, t('vatSumMinusDutyFormula'))
                         ),
                         h('div', { className: "text-right" },
                             h('p', { className: "text-sm font-black text-purple-600" },
-                                formatCurrencyLocal(exportVatRebateRub - exportDutyRub, { maximumFractionDigits: 2 }),
+                                formatCurrencyLocal(displayVatSumRub - exportDutyRub, { maximumFractionDigits: 2 }),
                                 h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
                             )
                         )

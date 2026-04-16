@@ -102,10 +102,13 @@ function App() {
     const [policyName, setPolicyName] = useState(DEFAULT_VALUES?.policyName ?? '常规进口税收政策');
     const [saveStatus, setSaveStatus] = useState(null);
     
-    // 海外段参数
-    const [farmPriceRub, setFarmPriceRub] = useState(DEFAULT_VALUES?.farmPriceRub ?? 0);
-    const [shortHaulDistanceKm, setShortHaulDistanceKm] = useState(DEFAULT_VALUES?.shortHaulDistanceKm ?? 0);
-    const [shortHaulPricePerKmPerContainer, setShortHaulPricePerKmPerContainer] = useState(DEFAULT_VALUES?.shortHaulPricePerKmPerContainer ?? 0);
+    // 海外段参数（农场+短驳可多组）
+    const [overseaModules, setOverseaModules] = useState(() => {
+        const m = DEFAULT_VALUES?.overseaModules;
+        return Array.isArray(m) && m.length > 0
+            ? m
+            : [{ id: 1, farmPriceRub: 0, shortHaulDistanceKm: 0, shortHaulPricePerKmPerContainer: 0, shortHaulVatRate: 0 }];
+    });
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES?.exportExtras ?? []);
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
     const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(true);
@@ -194,17 +197,42 @@ function App() {
             'distanceKm': { zh: '公里数', ru: 'Расстояние (км)', en: 'Distance (km)' },
             'pricePerKmPerContainer': { zh: '每公里每柜价格 (RUB)', ru: 'Цена за км за контейнер (RUB)', en: 'Price per km per container (RUB)' },
             'shortHaulFeeResult': { zh: '短驳费', ru: 'Плата за короткую перевозку', en: 'Short Haul Fee' },
+            'farmHaulModuleTitle': { zh: '农场采购与短驳', ru: 'Закупка и короткая перевозка', en: 'Farm purchase & short haul' },
+            'addFarmHaulModule': { zh: '添加农场+短驳模块', ru: 'Добавить блок (ферма + перевозка)', en: 'Add farm + short-haul block' },
+            'removeFarmHaulModule': { zh: '删除此模块', ru: 'Удалить блок', en: 'Remove this block' },
             'calculationFormula': { zh: '计算公式', ru: 'Формула расчета', en: 'Calculation Formula' },
             'lossRatio': { zh: '物损比', ru: 'Коэффициент потерь', en: 'Loss Ratio' },
             'viewLossRatioDetails': { zh: '查看物损比详情', ru: 'Просмотр деталей коэффициента потерь', en: 'View Loss Ratio Details' },
             'shortHaulFeePerTon': { zh: '短驳费（每吨）', ru: 'Плата за короткую перевозку (за тонну)', en: 'Short Haul Fee (per ton)' },
             'lossRatioFormula': { zh: '计算公式: 短驳费 ÷ 海外到站预估', ru: 'Формула расчета: Плата за короткую перевозку ÷ Оценка прибытия за границу', en: 'Formula: Short Haul Fee ÷ Overseas Arrival Estimate' },
             'vatTax': { zh: '增值税', ru: 'НДС', en: 'VAT' },
+            'vatSumTotal': { zh: '增值税的总和', ru: 'Сумма НДС', en: 'Total VAT (sum)' },
+            'vatSumFormula': { zh: '计算公式: 各模块农场采购价增值税(同出口增值税率) + 各模块短驳费增值税 + 各杂费增值税（价内税，仅展示）', ru: 'Формула: НДС закупки по блокам + НДС перевозки по блокам + НДС по доп. (в цене, только показ)', en: 'Formula: per-block farm VAT + per-block short-haul VAT + extras VAT (display only)' },
+            'vatSumMinusDutyFormula': { zh: '计算公式: 增值税总和 − 关税', ru: 'Формула: сумма НДС − пошлина', en: 'Formula: total VAT − duty' },
+            'vatDisplayOnlyNote': { zh: '以下增值税仅展示（价内税），不参与到站预估等计算', ru: 'НДС ниже только для отображения (в цене), не влияет на расчёты', en: 'VAT below is display-only (inclusive), not used in totals' },
+            'vatDisplayFarm': { zh: '农场采购价增值税', ru: 'НДС закупки на ферме', en: 'Farm purchase VAT' },
+            'vatRateFixed10': { zh: '税率 10%（固定）', ru: 'Ставка 10% (фикс.)', en: 'Rate 10% (fixed)' },
+            'vatRateLinkedExport': { zh: '同出口增值税率', ru: 'Как экспортная ставка НДС', en: 'Same as export VAT %' },
+            'vatRateExportUnsetHint': { zh: '请在出口政策中填写出口增值税率', ru: 'Укажите экспортный НДС в политике', en: 'Set export VAT % in export policy' },
+            'vatCalcStepFarmTpl': { zh: '农场采购价增值税（价内税）= 采购价 × {rate}% ÷ (100% + {rate}%)', ru: 'НДС закупки (в цене) = цена × {rate}% ÷ (100% + {rate}%)', en: 'Farm VAT (inclusive) = price × {rate}% ÷ (100% + {rate}%)' },
+            'shortHaulVatRateLabel': { zh: '短驳费增值税率', ru: 'Ставка НДС на короткую перевозку', en: 'Short haul VAT rate' },
+            'vatPerTonShortHaul': { zh: '短驳费增值税（每吨）', ru: 'НДС перевозки (руб/т)', en: 'Short haul VAT (per ton)' },
+            'extraVatRateLabel': { zh: '杂费增值税率', ru: 'Ставка НДС на доп. расход', en: 'Extra VAT rate' },
+            'vatPerTonExtra': { zh: '杂费增值税（每吨）', ru: 'НДС доп. расхода (руб/т)', en: 'Extra VAT (per ton)' },
+            'vatCalcDetailTitle': { zh: '价内税计算过程', ru: 'Расчёт НДС (в цене)', en: 'Inclusive VAT breakdown' },
+            'vatCalcToggleShow': { zh: '查看详细计算过程', ru: 'Показать расчёт', en: 'Show calculation steps' },
+            'vatCalcToggleHide': { zh: '收起', ru: 'Скрыть', en: 'Hide' },
+            'vatCalcStep1ShortHaul': { zh: '短驳费（每柜）= 公里数 × 2 × 每公里每柜价', ru: 'Перевозка (за конт.) = км × 2 × цена/км/конт.', en: 'Short haul (per container) = km × 2 × price/km/container' },
+            'vatCalcStep2PerTon': { zh: '短驳费（每吨）= 短驳费（每柜）÷ 每柜吨数', ru: 'Перевозка (руб/т) = за контейнер ÷ тонн/конт.', en: 'Short haul (per ton) = per-container fee ÷ tons per container' },
+            'vatCalcStep3Inclusive': { zh: '每吨增值税（价内税）= 每吨含税金额 × 税率 ÷ (100% + 税率)', ru: 'НДС/т (в цене) = сумма/т × ставка ÷ (100% + ставка)', en: 'VAT/t (inclusive) = amount/t × rate ÷ (100% + rate)' },
+            'vatCalcStepFarm': { zh: '农场采购价增值税（价内税）= 采购价 × 10% ÷ (100% + 10%)', ru: 'НДС закупки = цена × 10% ÷ (100% + 10%)', en: 'Farm VAT = price × 10% ÷ (100% + 10%)' },
+            'vatCalcStepExtra': { zh: '杂费增值税（每吨，价内税）= 杂费含税（每吨）× 税率 ÷ (100% + 税率)', ru: 'НДС доп. = сумма/т × ставка ÷ (100% + ставка)', en: 'Extra VAT/t = inclusive extra/t × rate ÷ (100% + rate)' },
+            'vatCalcExtraPerTonFromContainer': { zh: '杂费（每吨）= 杂费（每柜）÷ 每柜吨数', ru: 'Доп./т = доп./конт. ÷ тонн/конт.', en: 'Extra (per ton) = per-container ÷ tons per container' },
             'vatFormula': { zh: '计算公式: 采购价（不含税） × 增值税率', ru: 'Формула расчета: Цена покупки (без налога) × Ставка НДС', en: 'Formula: Purchase Price (excluding tax) × VAT Rate' },
             'dutyTax': { zh: '关税', ru: 'Пошлина', en: 'Duty' },
-            'dutyFormula': { zh: '计算公式: 进口结算货值 × 关税税率', ru: 'Формула расчета: Стоимость импортного расчета × Ставка пошлины', en: 'Formula: Import Settlement Value × Duty Rate' },
-            'vatMinusDuty': { zh: '增值税 - 关税', ru: 'НДС - Пошлина', en: 'VAT - Duty' },
-            'vatMinusDutyFormula': { zh: '计算公式: 增值税 - 关税', ru: 'Формула расчета: НДС - Пошлина', en: 'Formula: VAT - Duty' },
+            'dutyFormula': { zh: '计算公式: 海外到站预估 × 关税税率', ru: 'Формула: Прогноз прибытия × Ставка экспортной пошлины', en: 'Formula: Overseas Arrival Estimate × Export Duty Rate' },
+            'vatMinusDuty': { zh: '增值税总和 - 关税', ru: 'Сумма НДС − пошлина', en: 'Total VAT − Duty' },
+            'vatMinusDutyFormula': { zh: '计算公式: 增值税总和 − 关税', ru: 'Формула: сумма НДС − пошлина', en: 'Formula: total VAT − duty' },
             'domesticSection': { zh: '国内段计算参数', ru: 'Параметры расчета внутреннего сегмента', en: 'Domestic Segment Parameters' },
             'importSettlementValue': { zh: '进口结算货值 (RUB)', ru: 'Стоимость импортного расчета (RUB)', en: 'Import Settlement Value (RUB)' },
             'chinaEuropeFreightOverseas': { zh: '中欧班列运费 - 国外段 (USD/柜)', ru: 'Фрахт Китай-Европа - Зарубежный сегмент (USD/контейнер)', en: 'China-Europe Freight - Overseas Segment (USD/container)' },
@@ -328,7 +356,18 @@ function App() {
             'exportPriceForDutyHint': { zh: '填写此值则用出口价格计算关税，不填则使用进口结算货值', ru: 'Если заполнено, используется для расчета пошлины; иначе используется импортная стоимость', en: 'If filled, use this price for duty calculation; otherwise use import settlement value' },
             'effectiveDutyBase': { zh: '实际关税基础价', ru: 'Фактическая база для пошлины', en: 'Effective Duty Base' },
             'addOverseasExtra': { zh: '添加海外杂费', ru: 'Добавить доп. расходы (заграница)', en: 'Add Overseas Extra' },
-            'extraItemName': { zh: '费用项目', ru: 'Статья расходов', en: 'Item Name' }
+            'extraItemName': { zh: '费用项目', ru: 'Статья расходов', en: 'Item Name' },
+            'exportExtraPreset_packageCost': { zh: '袋子费用', ru: 'Стоимость упаковочных мешков / тары', en: 'package cost' },
+            'exportExtraPreset_laborCost': { zh: '打包人力费用', ru: 'Стоимость труда на упаковку', en: 'labor cost' },
+            'exportExtraPreset_packageLaborCombo': { zh: '打包服务费（袋子+人力）', ru: 'Услуги упаковки (материалы + труд)', en: 'package+labor cost' },
+            'exportExtraPreset_labTestConformity': { zh: '符合性声明实验室检测费', ru: 'Лабораторные испытания для декларации соответствия', en: 'laboratory test for the declaration of conformity' },
+            'exportExtraPreset_quarantineConclusion': { zh: '检疫证明', ru: 'Карантинное заключение', en: 'quarantine Conclusion' },
+            'exportExtraPreset_fumigation': { zh: '熏蒸费用', ru: 'Фумигация', en: 'fumigation' },
+            'exportExtraPreset_safetyQualityCert': { zh: '安全与质量证书', ru: 'Сертификат безопасности и качества', en: 'certificate of safety and quality' },
+            'exportExtraPreset_customsBroker': { zh: '出口报关费', ru: 'Таможенное оформление экспорта / брокер', en: 'customs declaration /broker' },
+            'exportExtraPreset_certificateOfOrigin': { zh: '原产地证书', ru: 'Сертификат происхождения / CT-1', en: 'Certificate of Origin / CT-1' },
+            'exportExtraPreset_sdizOperational': { zh: 'SDIZ操作费', ru: 'Операционные расходы SDIZ', en: 'SDIZ operational cost' },
+            'exportExtraPreset_myExportOperational': { zh: 'my export操作费', ru: 'Операционные расходы My Export', en: 'my export operational cost' }
         };
         const trans = translations[key];
         return trans ? trans[language] || trans.zh : key;
@@ -407,6 +446,19 @@ function App() {
     // 批次参数
     const [totalContainers, setTotalContainers] = useState(DEFAULT_VALUES?.totalContainers ?? 10);
     const [tonsPerContainer, setTonsPerContainer] = useState(DEFAULT_VALUES?.tonsPerContainer ?? 26);
+
+    const farmPriceRubSum = useMemo(
+        () => overseaModules.reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0),
+        [overseaModules]
+    );
+    const shortHaulFeePerTonTotal = useMemo(() => {
+        const tpc = tonsPerContainer || 1;
+        return overseaModules.reduce((s, m) => {
+            const km = Number(m.shortHaulDistanceKm) || 0;
+            const pp = Number(m.shortHaulPricePerKmPerContainer) || 0;
+            return s + (km * 2 * pp) / tpc;
+        }, 0);
+    }, [overseaModules, tonsPerContainer]);
     
     // 资金参数
     const [collectionDays, setCollectionDays] = useState(DEFAULT_VALUES?.collectionDays ?? 45);
@@ -556,7 +608,7 @@ function App() {
         }
     };
     
-    const addExportExtra = () => setExportExtras([...exportExtras, { id: Date.now(), name: '', value: '', unit: 'RUB/ton' }]);
+    const addExportExtra = () => setExportExtras([...exportExtras, { id: Date.now(), name: '', value: '', unit: 'RUB/ton', vatRate: 0 }]);
     const deleteExportExtra = (id) => setExportExtras(exportExtras.filter(item => item.id !== id));
     const updateExportExtra = (id, field, value) => setExportExtras(exportExtras.map(item => item.id === id ? { ...item, [field]: value } : item));
     const toggleExportExtraUnit = (id) => setExportExtras(exportExtras.map(item => item.id === id ? { ...item, unit: item.unit === 'RUB/ton' ? 'RUB/container' : 'RUB/ton' } : item));
@@ -568,9 +620,7 @@ function App() {
 
     const SHORT_HAUL_AUTO_ID = -9999;
     useEffect(() => {
-        const tpc = tonsPerContainer || 1;
-        const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
-        const shortHaulCny = shortHaulFeePerTon / (exchangeRate || 1);
+        const shortHaulCny = shortHaulFeePerTonTotal / (exchangeRate || 1);
         if (!includeShortHaulInDuty && shortHaulCny > 0) {
             setDomesticExtras(prev => {
                 const exists = prev.find(item => item.id === SHORT_HAUL_AUTO_ID);
@@ -591,16 +641,17 @@ function App() {
         } else {
             setDomesticExtras(prev => prev.filter(item => item.id !== SHORT_HAUL_AUTO_ID));
         }
-    }, [includeShortHaulInDuty, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, tonsPerContainer, exchangeRate]);
+    }, [includeShortHaulInDuty, shortHaulFeePerTonTotal, exchangeRate]);
     
     // === 计算 ===
     const results = useMemo(() => {
         return calculatePricing({
             exchangeRate,
             usdCnyRate,
-            farmPriceRub,
-            shortHaulDistanceKm,
-            shortHaulPricePerKmPerContainer,
+            farmPriceRub: farmPriceRubSum,
+            shortHaulDistanceKm: 0,
+            shortHaulPricePerKmPerContainer: 0,
+            shortHaulFeePerTonOverride: shortHaulFeePerTonTotal,
             exportExtras,
             dutyRate,
             vatRate,
@@ -625,7 +676,7 @@ function App() {
             exportPriceRub
         });
     }, [
-        exchangeRate, usdCnyRate, farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, dutyRate, vatRate,
+        exchangeRate, usdCnyRate, farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, dutyRate, vatRate,
         exportPolicyMode, exportDutyRate, exportVatRate, exportPlanType,
         importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
@@ -641,12 +692,11 @@ function App() {
             setExportPriceRub(Math.round(suggested));
         } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
             const tpc = tonsPerContainer || 1;
-            const shortHaulFeePerTon = shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer / tpc;
             const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {
                 const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
                 return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
             }, 0);
-            const costBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+            const costBase = farmPriceRubSum + shortHaulFeePerTonTotal + exportExtrasTotalRub;
             const r = exportDutyRate / 100;
             if (costBase > 0 && r < 1) {
                 setExportPriceRub(Math.round(costBase / (1 - r)));
@@ -655,7 +705,7 @@ function App() {
             setExportPriceRub(0);
         }
     }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
-        farmPriceRub, shortHaulDistanceKm, shortHaulPricePerKmPerContainer, exportExtras, tonsPerContainer]);
+        farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, tonsPerContainer]);
 
     // === 渲染 ===
     return h('div', { className: "min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800" },
@@ -765,12 +815,8 @@ function App() {
             h('div', { className: "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6" },
                 // 1. 海外段计算参数
                 h(window.OverseaSection, {
-                    farmPriceRub,
-                    setFarmPriceRub,
-                    shortHaulDistanceKm,
-                    setShortHaulDistanceKm,
-                    shortHaulPricePerKmPerContainer,
-                    setShortHaulPricePerKmPerContainer,
+                    overseaModules,
+                    setOverseaModules,
                     exportExtras,
                     addExportExtra,
                     deleteExportExtra,
@@ -783,6 +829,7 @@ function App() {
                     exportVatRebateRub: results.exportVatRebateRub ?? 0,
                     exportDutyRub: results.exportDutyRub ?? 0,
                     exportDutyRate,
+                    exportVatRate,
                     expectedProfitPercent,
                     setExpectedProfitPercent,
                     includeShortHaulInDuty,
@@ -896,14 +943,17 @@ function App() {
             FarmPriceReverseModal && h(FarmPriceReverseModal, {
                 isOpen: isReverseModalOpen,
                 onClose: () => setIsReverseModalOpen(false),
-                onApply: (farmPriceRub) => {
-                    setFarmPriceRub(farmPriceRub);
+                onApply: (totalFarmRub) => {
+                    setOverseaModules((mods) => {
+                        const rest = mods.slice(1).reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0);
+                        const firstFarm = Math.max(0, Number(totalFarmRub) - rest);
+                        return mods.map((m, i) => (i === 0 ? { ...m, farmPriceRub: firstFarm } : m));
+                    });
                     setIsReverseModalOpen(false);
                 },
                 exchangeRate,
                 usdCnyRate,
-                shortHaulDistanceKm,
-                shortHaulPricePerKmPerContainer,
+                shortHaulFeePerTon: shortHaulFeePerTonTotal,
                 exportExtras,
                 dutyRate,
                 vatRate,

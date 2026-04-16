@@ -14,8 +14,8 @@ interface FarmPriceReverseModalProps {
     // 当前参数（用于计算）
     exchangeRate: number;
     usdCnyRate: number;
-    shortHaulDistanceKm: number;
-    shortHaulPricePerKmPerContainer: number;
+    /** 每吨短驳费合计（RUB/t），优先于公里数推算 */
+    shortHaulFeePerTon: number;
     exportExtras: OverseaExtra[];
     dutyRate: number;
     vatRate: number;
@@ -41,8 +41,7 @@ export function FarmPriceReverseModal({
     onApply,
     exchangeRate,
     usdCnyRate,
-    shortHaulDistanceKm,
-    shortHaulPricePerKmPerContainer,
+    shortHaulFeePerTon,
     exportExtras,
     dutyRate,
     vatRate,
@@ -50,6 +49,7 @@ export function FarmPriceReverseModal({
     importPriceUnit,
     intlFreightOverseasUsd,
     intlFreightDomesticUsd,
+    insuranceRate,
     domesticShortHaulCny,
     domesticExtras,
     tonsPerContainer,
@@ -73,8 +73,7 @@ export function FarmPriceReverseModal({
                 result = reverseFarmPriceFromArrivalPrice({
                     targetArrivalPriceCny,
                     exchangeRate,
-                    shortHaulDistanceKm,
-                    shortHaulPricePerKmPerContainer,
+                    shortHaulFeePerTon,
                     exportExtras,
                     tonsPerContainer
                 });
@@ -85,8 +84,7 @@ export function FarmPriceReverseModal({
                     targetBaseLandingPriceCny,
                     exchangeRate,
                     usdCnyRate,
-                    shortHaulDistanceKm,
-                    shortHaulPricePerKmPerContainer,
+                    shortHaulFeePerTon,
                     exportExtras,
                     dutyRate,
                     vatRate,

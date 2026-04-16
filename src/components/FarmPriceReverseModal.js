@@ -15,8 +15,7 @@ function FarmPriceReverseModal({
     onApply,
     exchangeRate,
     usdCnyRate,
-    shortHaulDistanceKm,
-    shortHaulPricePerKmPerContainer,
+    shortHaulFeePerTon,
     exportExtras,
     dutyRate,
     vatRate,
@@ -50,8 +49,7 @@ function FarmPriceReverseModal({
                 result = reverseFarmPriceFromArrivalPrice({
                     targetArrivalPriceCny,
                     exchangeRate,
-                    shortHaulDistanceKm,
-                    shortHaulPricePerKmPerContainer,
+                    shortHaulFeePerTon,
                     exportExtras,
                     tonsPerContainer
                 });
@@ -62,8 +60,7 @@ function FarmPriceReverseModal({
                     targetBaseLandingPriceCny,
                     exchangeRate,
                     usdCnyRate,
-                    shortHaulDistanceKm,
-                    shortHaulPricePerKmPerContainer,
+                    shortHaulFeePerTon,
                     exportExtras,
                     dutyRate,
                     vatRate,
