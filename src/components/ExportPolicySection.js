@@ -16,6 +16,8 @@ function ExportPolicySection({
     subType,
     exportSaveStatus,
     saveExportPolicy,
+    /** 当前规格是否已在服务端/本会话保存过出口政策 */
+    exportSaved = false,
     language = 'zh',
     t = (key) => key
 }) {
@@ -28,9 +30,13 @@ function ExportPolicySection({
             exportSaveStatus
         ),
         h('div', { className: "flex justify-between items-center border-b border-green-200 pb-2" },
-            h('h4', { className: "text-sm font-black text-green-700 flex items-center gap-2 italic uppercase tracking-wider" },
+            h('h4', { className: "text-sm font-black text-green-700 flex flex-wrap items-center gap-2 italic uppercase tracking-wider" },
                 h(Icon, { name: 'TrendingUp', size: 16 }),
-                ` 2. ${t('exportPolicyTitle')}`
+                ` 2. ${t('exportPolicyTitle')}`,
+                exportSaved && h('span', {
+                    className: "text-[9px] font-black px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 border border-emerald-300/80 not-italic tracking-normal normal-case",
+                    title: t('policySavedBadge')
+                }, t('policySavedBadge'))
             ),
             h('button', {
                 onClick: saveExportPolicy,

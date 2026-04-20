@@ -12,6 +12,8 @@ function PolicySection({
     subType,
     saveStatus,
     savePolicy,
+    /** 当前规格是否已在服务端/本会话保存过进口政策 */
+    importSaved = false,
     language = 'zh',
     t = (key) => key
 }) {
@@ -24,9 +26,13 @@ function PolicySection({
             saveStatus
         ),
         h('div', { className: "flex justify-between items-center border-b border-blue-200 pb-2" },
-            h('h4', { className: "text-sm font-black text-blue-700 flex items-center gap-2 italic uppercase tracking-wider" },
+            h('h4', { className: "text-sm font-black text-blue-700 flex flex-wrap items-center gap-2 italic uppercase tracking-wider" },
                 h(Icon, { name: 'ShieldCheck', size: 16 }),
-                ` 4. ${t('importTaxPolicyTitle')}`
+                ` 4. ${t('importTaxPolicyTitle')}`,
+                importSaved && h('span', {
+                    className: "text-[9px] font-black px-2 py-0.5 rounded-md bg-blue-200 text-blue-900 border border-blue-300/80 not-italic tracking-normal normal-case",
+                    title: t('policySavedBadge')
+                }, t('policySavedBadge'))
             ),
             h('button', {
                 onClick: savePolicy,

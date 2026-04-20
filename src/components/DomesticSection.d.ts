@@ -9,6 +9,8 @@ export interface DomesticSectionProps {
     setImportPriceRub: (value: number) => void;
     importPriceUnit: 'RUB/t' | 'RUB/柜';
     setImportPriceUnit: (value: 'RUB/t' | 'RUB/柜') => void;
+    /** 卢布/人民币，与 calculatePricing 一致 */
+    exchangeRate?: number;
     intlFreightOverseasUsd: number;
     setIntlFreightOverseasUsd: (value: number) => void;
     intlFreightDomesticUsd: number;

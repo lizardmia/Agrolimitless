@@ -22,14 +22,21 @@ export interface OverseaSectionProps {
     exportVatRate?: number;
     expectedProfitPercent?: number;
     setExpectedProfitPercent?: (n: number) => void;
+    expectedProfitPerTonRub?: number;
+    setExpectedProfitPerTonRub?: (n: number | undefined) => void;
     includeShortHaulInDuty?: boolean;
     setIncludeShortHaulInDuty?: (b: boolean) => void;
     exportPriceRub?: number;
     setExportPriceRub?: (n: number) => void;
+    exportPriceNoRebateRub?: number;
+    setExportPriceNoRebateRub?: (n: number) => void;
     suggestedFarmPriceRub?: number;
     suggestedExportPriceRub?: number;
     suggestedExportDutyRub?: number;
     effectiveDutyBaseRub?: number;
+    effectiveDutyBaseNoRebateRub?: number;
+    breakEvenExportPriceRub?: number;
+    breakEvenExportPriceNoRebateRub?: number;
     language?: string;
     t?: (key: string) => string;
 }

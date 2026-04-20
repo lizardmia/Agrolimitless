@@ -31,14 +31,21 @@ function OverseaSection({
     // 新增：期望盈利、短驳关税选项、出口价格
     expectedProfitPercent = 0,
     setExpectedProfitPercent,
+    expectedProfitPerTonRub,
+    setExpectedProfitPerTonRub,
     includeShortHaulInDuty = true,
     setIncludeShortHaulInDuty,
     exportPriceRub = 0,
     setExportPriceRub,
+    exportPriceNoRebateRub = 0,
+    setExportPriceNoRebateRub,
     suggestedFarmPriceRub = 0,
     suggestedExportPriceRub = 0,
     suggestedExportDutyRub = 0,
     effectiveDutyBaseRub = 0,
+    effectiveDutyBaseNoRebateRub = 0,
+    breakEvenExportPriceRub = 0,
+    breakEvenExportPriceNoRebateRub = 0,
     language = 'zh',
     t = (key) => key
 }) {
@@ -102,52 +109,40 @@ function OverseaSection({
         return sum + vatFromInclusiveRub(perTon, vr);
     }, 0);
     const displayVatSumRub = farmVatDisplaySum + shortHaulVatDisplaySum + extrasVatDisplaySum;
-    // 每吨期望盈利 = 建议出口价 - costBase
+    // 每吨期望盈利：按「吨」锚定时 = 建议出口价 − 保本价（与 calculatePricing 一致）；否则 = 建议价 − 全栈成本
+    const tonAnchorMode =
+        expectedProfitPerTonRub !== undefined &&
+        expectedProfitPerTonRub !== null &&
+        Number.isFinite(Number(expectedProfitPerTonRub)) &&
+        expectedProfitPercent === 0;
     const profitPerTon = suggestedExportPriceRub > 0
-        ? suggestedExportPriceRub - costBase
+        ? (tonAnchorMode
+            ? suggestedExportPriceRub - (breakEvenExportPriceRub ?? 0)
+            : suggestedExportPriceRub - costBase)
         : 0;
 
-    // 从每吨盈利反推百分点
-    // 包含短驳：profit = costBase*(m+r)/(1-r)  => m = profit*(1-r)/costBase - r
-    // 不含短驳：P = (costBase*(1+m) - shortHaul*r)/(1-r)，profit = P - costBase
-    //   => profit*(1-r) = costBase*(1+m) - shortHaul*r - costBase*(1-r)
-    //   => profit*(1-r) = costBase*m + costBase*r - shortHaul*r
-    //   => m = [profit*(1-r) - r*(costBase - shortHaul)] / costBase
-    const calcPercentFromProfit = (profit) => {
-        if (costBase <= 0) return 0;
-        const r = exportDutyRate / 100;
-        let m;
-        if (includeShortHaulInDuty) {
-            m = (profit * (1 - r)) / costBase - r;
-        } else {
-            m = (profit * (1 - r) - r * (costBase - shortHaulFeePerTonDisplay)) / costBase;
-        }
-        return Math.round(m * 10000) / 100; // 保留2位小数，允许负值
-    };
-    // 保本最低每吨盈利（令 m=0 时的 profit）
-    // 包含短驳：minProfit = costBase * r / (1-r)
-    // 不含短驳：minProfit = r * (costBase - shortHaulFeePerTonDisplay) / (1-r)
-    const _r = exportDutyRate / 100;
-    const minBreakEvenProfit = costBase > 0 && _r < 1
-        ? (includeShortHaulInDuty
-            ? _r * costBase / (1 - _r)
-            : _r * (costBase - shortHaulFeePerTonDisplay) / (1 - _r))
-        : 0;
-    
     // 每吨盈利输入框本地 state，与 profitPerTon 联动
     const [profitPerTonInput, setProfitPerTonInput] = React.useState('');
     // 标记是否由用户主动输入每吨盈利（防止循环覆盖）
     const isUserEditingProfit = React.useRef(false);
 
-    // 当百分点驱动的 profitPerTon 变化时，同步到输入框（仅在非用户输入时）
+    // 同步每吨盈利输入框：吨锚定模式显示用户填入的每吨盈利；否则跟计算出的 profitPerTon
     React.useEffect(() => {
         if (isUserEditingProfit.current) return;
+        if (
+            tonAnchorMode &&
+            expectedProfitPerTonRub !== undefined &&
+            expectedProfitPerTonRub !== null
+        ) {
+            setProfitPerTonInput(String(Math.round(Number(expectedProfitPerTonRub))));
+            return;
+        }
         if (profitPerTon > 0) {
             setProfitPerTonInput(String(Math.round(profitPerTon)));
         } else if (expectedProfitPercent === 0) {
             setProfitPerTonInput('');
         }
-    }, [profitPerTon, expectedProfitPercent]);
+    }, [profitPerTon, expectedProfitPercent, tonAnchorMode, expectedProfitPerTonRub]);
     const [showLossRatioTooltip, setShowLossRatioTooltip] = useState(false);
     const [openVatDetail, setOpenVatDetail] = useState(null);
     const tooltipRef = useRef(null);
@@ -180,9 +175,9 @@ function OverseaSection({
     // 计算物损比
     const lossRatio = russianArrivalPriceRub > 0 ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100 : 0;
     
-    return h('div', { className: "bg-orange-50/50 p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm" },
-        h('div', { className: "flex justify-between items-center mb-2" },
-            h('h4', { className: "text-sm font-bold text-orange-600 flex items-center gap-2 italic uppercase tracking-wider underline decoration-orange-200 decoration-2 underline-offset-4" },
+    return h('div', { className: "bg-orange-50/50 p-3 rounded-xl border border-orange-100 space-y-2 shadow-sm" },
+        h('div', { className: "flex justify-between items-center gap-2 mb-1" },
+            h('h4', { className: "text-xs font-bold text-orange-600 flex items-center gap-1.5" },
                 h(Icon, { name: 'Globe', size: 14 }),
                 ` 1. ${t('overseaSection')}`
             ),
@@ -194,7 +189,7 @@ function OverseaSection({
                         console.warn('openFarmPriceReverseModal 函数未找到');
                     }
                 },
-                className: `bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-2 ${language === 'zh' ? 'whitespace-nowrap' : 'whitespace-normal leading-tight'}`,
+                className: `bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg font-bold text-[10px] shadow-sm hover:shadow transition-all flex items-center gap-1.5 shrink-0 ${language === 'zh' ? 'whitespace-nowrap' : 'whitespace-normal leading-tight'}`,
                 title: t('reverseFarmPrice')
             },
                 h(Icon, { name: 'Calculator', size: 14 }),
@@ -221,7 +216,9 @@ function OverseaSection({
                 const showFarmD = openVatDetail === `${mod.id}-farm`;
                 const showHaulD = openVatDetail === `${mod.id}-haul`;
                 const vatPerTonHaul = shPerTon > 0 && shVat > 0 ? vatFromInclusiveRub(shPerTon, shVat) : 0;
-                return h('div', { key: mod.id, className: "rounded-xl border border-orange-200 bg-white/70 p-3 space-y-2 shadow-sm" },
+                /** 关税计算不包含短驳时：短驳费输入区置灰提示（仍可编辑，便于切回「包含」后沿用） */
+                const dutyInclHaul = includeShortHaulInDuty !== false;
+                return h('div', { key: mod.id, className: "rounded-lg border border-orange-200 bg-white/70 p-2 space-y-1.5 shadow-sm" },
                     modList.length > 1 && h('div', { className: "flex justify-between items-center mb-1" },
                         h('span', { className: "text-[10px] font-bold text-orange-700" },
                             `${t('farmHaulModuleTitle')} ${modIdx + 1}`
@@ -276,11 +273,46 @@ function OverseaSection({
                             )
                         )
                     ),
-                    h('div', { className: "bg-white p-3 rounded-xl border border-orange-200 shadow-sm" },
-                        h('div', { className: "text-[10px] text-orange-600 font-black uppercase tracking-tighter mb-2" }, t('shortHaulFee')),
+                    modIdx === 0 && h('div', { className: "mb-1.5 p-1.5 w-full bg-amber-50 rounded-lg border border-amber-200 flex flex-col justify-center" },
+                        h('p', { className: "text-[9px] font-bold text-amber-700 mb-1 leading-tight" },
+                            t('includeShortHaulInDuty')
+                        ),
+                        h('div', { className: "flex flex-wrap gap-x-3 gap-y-1" },
+                            h('label', { className: "flex items-center gap-1 cursor-pointer" },
+                                h('input', {
+                                    type: 'radio',
+                                    name: 'includeShortHaulInDuty',
+                                    checked: includeShortHaulInDuty === false,
+                                    onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(false),
+                                    className: "accent-amber-600"
+                                }),
+                                h('span', { className: "text-[10px] text-amber-800" }, t('includeShortHaulNo'))
+                            ),
+                            h('label', { className: "flex items-center gap-1 cursor-pointer" },
+                                h('input', {
+                                    type: 'radio',
+                                    name: 'includeShortHaulInDuty',
+                                    checked: includeShortHaulInDuty === true,
+                                    onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(true),
+                                    className: "accent-amber-600"
+                                }),
+                                h('span', { className: "text-[10px] text-amber-800" }, t('includeShortHaulYes'))
+                            )
+                        )
+                    ),
+                    h('div', {
+                        className: dutyInclHaul
+                            ? 'bg-white p-2 rounded-lg border border-orange-200 shadow-sm'
+                            : 'bg-slate-100/95 p-2 rounded-lg border border-slate-300/90 shadow-sm opacity-[0.92]'
+                    },
+                        h('div', {
+                            className: dutyInclHaul
+                                ? 'text-[9px] text-orange-600 font-black uppercase tracking-tighter mb-1.5'
+                                : 'text-[9px] text-slate-500 font-black uppercase tracking-tighter mb-1.5'
+                        }, t('shortHaulFee')),
                         h('div', { className: "grid grid-cols-2 gap-3" },
                             h('div', null,
-                                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('distanceKm')),
+                                h('label', { className: dutyInclHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('distanceKm')),
                                 h('input', {
                                     type: "number",
                                     value: km === 0 ? '' : km,
@@ -289,11 +321,13 @@ function OverseaSection({
                                         updateModule(mod.id, { shortHaulDistanceKm: val === '' ? 0 : Number(val) });
                                     },
                                     placeholder: "0",
-                                    className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                    className: dutyInclHaul
+                                        ? "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                        : "w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-600 shadow-sm focus:ring-2 focus:ring-slate-300 focus:border-slate-400 outline-none"
                                 })
                             ),
                             h('div', null,
-                                h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1" }, t('pricePerKmPerContainer')),
+                                h('label', { className: dutyInclHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('pricePerKmPerContainer')),
                                 h('input', {
                                     type: "number",
                                     value: pp === 0 ? '' : pp,
@@ -302,24 +336,38 @@ function OverseaSection({
                                         updateModule(mod.id, { shortHaulPricePerKmPerContainer: val === '' ? 0 : Number(val) });
                                     },
                                     placeholder: "0",
-                                    className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                    className: dutyInclHaul
+                                        ? "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
+                                        : "w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-600 shadow-sm focus:ring-2 focus:ring-slate-300 focus:border-slate-400 outline-none"
                                 })
                             )
                         ),
-                        h('div', { className: "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100" },
+                        h('div', {
+                            className: dutyInclHaul
+                                ? "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100"
+                                : "mt-2 p-2 bg-slate-200/60 rounded-lg border border-slate-300/80"
+                        },
                             h('div', { className: "flex justify-between items-center" },
-                                h('span', { className: "text-[9px] text-orange-600 font-bold" }, `${t('shortHaulFeeResult')}:`),
-                                h('span', { className: "text-sm font-black text-orange-800" },
+                                h('span', {
+                                    className: dutyInclHaul ? "text-[9px] text-orange-600 font-bold" : "text-[9px] text-slate-500 font-bold"
+                                }, `${t('shortHaulFeeResult')}:`),
+                                h('span', {
+                                    className: dutyInclHaul ? "text-sm font-black text-orange-800" : "text-sm font-black text-slate-700"
+                                },
                                     formatCurrencyLocal(feePerContainer, { maximumFractionDigits: 2 }),
                                     ` ${t('rubPerContainer')}`
                                 )
                             ),
-                            h('p', { className: "text-[8px] text-slate-400 mt-1" },
+                            h('p', {
+                                className: dutyInclHaul ? "text-[8px] text-slate-400 mt-1" : "text-[8px] text-slate-500 mt-1"
+                            },
                                 `${t('calculationFormula')}: ${t('distanceKm')} × 2 × ${t('pricePerKmPerContainer')}`
                             )
                         ),
                         h('div', { className: "mt-2 space-y-1.5" },
-                            h('label', { className: "text-[9px] text-slate-600 font-bold block" }, `${t('shortHaulVatRateLabel')} (%)`),
+                            h('label', {
+                                className: dutyInclHaul ? "text-[9px] text-slate-600 font-bold block" : "text-[9px] text-slate-500 font-bold block"
+                            }, `${t('shortHaulVatRateLabel')} (%)`),
                             h('div', { className: "flex items-center gap-2" },
                                 h('input', {
                                     type: "number",
@@ -334,15 +382,25 @@ function OverseaSection({
                                             if (!isNaN(n) && n >= 0) updateModule(mod.id, { shortHaulVatRate: n });
                                         }
                                     },
-                                    className: "w-24 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-orange-200 outline-none",
+                                    className: dutyInclHaul
+                                        ? "w-24 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-orange-200 outline-none"
+                                        : "w-24 p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 focus:ring-2 focus:ring-slate-300 outline-none",
                                     placeholder: "0"
                                 }),
                                 h('span', { className: "text-[10px] text-slate-500" }, '%')
                             ),
-                            shPerTon > 0 && shVat > 0 && h('div', { className: "text-[10px] p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 space-y-1" },
+                            shPerTon > 0 && shVat > 0 && h('div', {
+                                className: dutyInclHaul
+                                    ? "text-[10px] p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 space-y-1"
+                                    : "text-[10px] p-2 rounded-lg bg-slate-200/50 border border-slate-300/70 space-y-1"
+                            },
                                 h('div', { className: "flex justify-between items-center gap-2" },
-                                    h('span', { className: "text-emerald-800 font-bold" }, t('vatPerTonShortHaul')),
-                                    h('span', { className: "text-emerald-700 font-black" },
+                                    h('span', {
+                                        className: dutyInclHaul ? "text-emerald-800 font-bold" : "text-slate-600 font-bold"
+                                    }, t('vatPerTonShortHaul')),
+                                    h('span', {
+                                        className: dutyInclHaul ? "text-emerald-700 font-black" : "text-slate-700 font-black"
+                                    },
                                         formatCurrencyLocal(vatPerTonHaul, { maximumFractionDigits: 2 }),
                                         ` ${t('rubPerTon')}`
                                     )
@@ -350,10 +408,14 @@ function OverseaSection({
                                 h('button', {
                                     type: 'button',
                                     onClick: () => setOpenVatDetail(showHaulD ? null : `${mod.id}-haul`),
-                                    className: "text-[9px] text-emerald-600 underline font-bold"
+                                    className: dutyInclHaul ? "text-[9px] text-emerald-600 underline font-bold" : "text-[9px] text-slate-500 underline font-bold"
                                 }, showHaulD ? t('vatCalcToggleHide') : t('vatCalcToggleShow')),
-                                showHaulD && h('div', { className: "pt-1 border-t border-emerald-200 text-[8px] text-emerald-900 space-y-1 leading-relaxed" },
-                                    h('p', { className: "font-bold text-emerald-800" }, t('vatCalcDetailTitle')),
+                                showHaulD && h('div', {
+                                    className: dutyInclHaul
+                                        ? "pt-1 border-t border-emerald-200 text-[8px] text-emerald-900 space-y-1 leading-relaxed"
+                                        : "pt-1 border-t border-slate-300 text-[8px] text-slate-700 space-y-1 leading-relaxed"
+                                },
+                                    h('p', { className: dutyInclHaul ? "font-bold text-emerald-800" : "font-bold text-slate-600" }, t('vatCalcDetailTitle')),
                                     h('p', null, `① ${t('vatCalcStep1ShortHaul')}`),
                                     h('p', null,
                                         '= ',
@@ -407,7 +469,7 @@ function OverseaSection({
                 ),
                 // 海外杂费列表（可滚动容器）
                 h('div', { 
-                    className: "max-h-64 overflow-y-auto space-y-2 pr-1 scrollable-list"
+                    className: "max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollable-list"
                 },
                     exportExtras.map(item =>
                         h('div', { key: item.id, className: "bg-white/60 p-2 rounded-xl border border-orange-50 space-y-2 shadow-sm hover:shadow-md transition-shadow" },
@@ -494,283 +556,287 @@ function OverseaSection({
                     )
                 )
             ),
-            // 海外到站预估卡片
-            h('div', { className: "bg-white p-4 rounded-xl border border-orange-200 shadow-sm mt-3" },
-                h('div', { className: "flex items-center gap-3" },
-                    h('div', { className: "w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500 flex-shrink-0" }, 
-                        h(Icon, { name: 'MapPin', size: 20 })
+            // 海外到站预估（紧凑布局）
+            h('div', { className: "bg-white p-2.5 rounded-lg border border-orange-200 shadow-sm mt-2" },
+                h('div', { className: "flex items-start gap-2" },
+                    h('div', { className: "w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-500 flex-shrink-0 mt-0.5" },
+                        h(Icon, { name: 'MapPin', size: 16 })
                     ),
-                    h('div', { className: "flex-1 relative", ref: tooltipRef },
-                        h('div', { className: "flex items-center gap-2 mb-1" },
-                            h('p', { className: "text-[10px] text-slate-400 font-medium tracking-tight" }, t('overseasArrivalEstimate')),
-                            h('div', { className: "flex items-center gap-1" },
-                                h('p', { className: "text-[10px] text-orange-500 font-bold" }, t('lossRatio')),
-                                h('button', {
-                                    onClick: (e) => {
-                                        e.stopPropagation();
-                                        setShowLossRatioTooltip(!showLossRatioTooltip);
-                                    },
-                                    className: `text-slate-400 hover:text-orange-500 transition-colors cursor-pointer flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-50 ${showLossRatioTooltip ? 'text-orange-500 bg-orange-50' : ''}`,
-                                    title: t('viewLossRatioDetails')
-                                },
-                                    h(Icon, { name: 'Info', size: 14 })
-                                )
+                    h('div', { className: "flex-1 min-w-0 relative", ref: tooltipRef },
+                        h('div', { className: "flex flex-wrap items-center gap-x-2 gap-y-0.5" },
+                            h('p', { className: "text-[9px] text-slate-500 font-bold" }, t('overseasArrivalEstimate')),
+                            h('span', { className: "text-[9px] text-orange-600 font-bold" },
+                                `${t('lossRatio')} ${formatCurrencyLocal(lossRatio, { maximumFractionDigits: 1 })}%`
                             ),
-                            showLossRatioTooltip && h('div', { 
-                                className: "absolute top-6 left-0 z-50 bg-[#1a2b4b] text-white p-3 rounded-lg shadow-xl border border-orange-400 min-w-[200px]",
-                                style: { zIndex: 50 },
+                            h('button', {
+                                type: 'button',
+                                onClick: (e) => {
+                                    e.stopPropagation();
+                                    setShowLossRatioTooltip(!showLossRatioTooltip);
+                                },
+                                className: `text-slate-400 hover:text-orange-500 p-0.5 rounded ${showLossRatioTooltip ? 'text-orange-500' : ''}`,
+                                title: t('viewLossRatioDetails')
+                            }, h(Icon, { name: 'Info', size: 12 })),
+                            showLossRatioTooltip && h('div', {
+                                className: "absolute top-6 left-0 z-50 bg-[#1a2b4b] text-white p-2.5 rounded-lg shadow-xl border border-orange-400 min-w-[180px] text-[8px]",
                                 onClick: (e) => e.stopPropagation()
                             },
-                                h('div', { className: "text-[10px] font-bold mb-2 text-orange-300" }, t('lossRatio')),
-                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
+                                h('div', { className: "font-bold mb-1 text-orange-300" }, t('lossRatio')),
+                                h('div', { className: "text-slate-300 space-y-0.5" },
                                     `${t('shortHaulFeePerTon')}: `,
-                                    h('span', { className: "text-white font-bold" }, 
-                                        formatCurrencyLocal(shortHaulFeePerTon, { maximumFractionDigits: 2 }),
-                                        ` ${t('rubPerTon')}`
-                                    )
-                                ),
-                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
-                                    `${t('overseasArrivalEstimate')}: `,
-                                    h('span', { className: "text-white font-bold" },
-                                        formatCurrencyLocal(russianArrivalPriceRub, { maximumFractionDigits: 2 }),
-                                        ` ${t('rubPerTon')}`
-                                    )
-                                ),
-                                h('div', { className: "text-[9px] text-slate-300 mb-1" },
-                                    t('lossRatioFormula')
-                                ),
-                                h('div', { className: "text-xs font-black text-orange-300 mt-2 pt-2 border-t border-orange-500" },
-                                    `${t('lossRatio')}: `,
-                                    h('span', { className: "text-white" },
-                                        formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
-                                        "%"
+                                    formatCurrencyLocal(shortHaulFeePerTon, { maximumFractionDigits: 2 }), ` ${t('rubPerTon')}`,
+                                    h('p', { className: "mt-1" }, t('lossRatioFormula')),
+                                    h('p', { className: "font-black text-orange-300 mt-1" },
+                                        `${t('lossRatio')}: ${formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 })}%`
                                     )
                                 )
                             )
                         ),
-                        // 海外到站预估（农场采购价 + 短驳费 + 海外杂费合计）
-                        h('div', { className: "flex flex-col gap-2" },
-                            h('div', { className: "bg-orange-50 rounded-lg px-2 py-1.5 border border-orange-100" },
-                                h('div', { className: "flex items-baseline gap-1" },
-                                    h('span', { className: "text-xl font-black text-orange-700 leading-none" },
-                                        formatCurrencyLocal(baseRussianArrivalPriceRub ?? russianArrivalPriceRub, { maximumFractionDigits: 0 })
-                                    ),
-                                    h('span', { className: "text-[9px] text-slate-400 font-normal" }, ` ${t('rubPerTon')}`)
-                                ),
-                                h('p', { className: "text-xs font-bold text-indigo-500 mt-0.5" },
-                                    "≈ ¥ ",
-                                    formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
-                                )
+                        h('div', { className: "mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1" },
+                            h('span', { className: "text-lg font-black text-orange-700 leading-none" },
+                                formatCurrencyLocal(baseRussianArrivalPriceRub ?? russianArrivalPriceRub, { maximumFractionDigits: 0 }),
+                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-0.5" }, t('rubPerTon'))
                             ),
-                            h('p', { className: "text-xs font-bold text-orange-600" },
-                                `${t('lossRatio')}: `,
-                                h('span', { className: "text-orange-700" },
-                                    formatCurrencyLocal(lossRatio, { maximumFractionDigits: 2 }),
-                                    "%"
-                                )
+                            h('span', { className: "text-[10px] font-bold text-indigo-500" },
+                                '≈ ¥ ',
+                                formatCurrencyLocal(russianArrivalPriceCny, { maximumFractionDigits: 2 })
                             )
                         )
                     )
                 ),
-                // 增值税总和、关税信息
-                h('div', { className: "mt-3 pt-3 border-t border-slate-200 space-y-2" },
-                    h('div', { className: "flex justify-between items-center" },
-                        h('div', { className: "flex-1" },
-                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('vatSumTotal')),
-                            h('p', { className: "text-[8px] text-slate-400" }, t('vatSumFormula'))
-                        ),
-                        h('div', { className: "text-right" },
-                            h('p', { className: "text-sm font-bold text-green-600" },
-                                formatCurrencyLocal(displayVatSumRub, { maximumFractionDigits: 2 }),
-                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
-                            )
+                h('div', { className: "mt-2 pt-2 border-t border-slate-100 grid grid-cols-3 gap-1.5 text-center" },
+                    h('div', { className: "rounded-md bg-green-50/80 px-1 py-1 border border-green-100" },
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('vatSumTotal')),
+                        h('p', { className: "text-[10px] font-bold text-green-700 tabular-nums" },
+                            formatCurrencyLocal(displayVatSumRub, { maximumFractionDigits: 0 })
                         )
                     ),
-                    // 关税
-                    h('div', { className: "flex justify-between items-center" },
-                        h('div', { className: "flex-1" },
-                            h('p', { className: "text-[9px] text-slate-500 font-bold mb-1" }, t('dutyTax')),
-                            h('p', { className: "text-[8px] text-slate-400" }, t('dutyFormula'))
-                        ),
-                        h('div', { className: "text-right" },
-                            h('p', { className: "text-sm font-bold text-blue-600" },
-                                formatCurrencyLocal(exportDutyRub, { maximumFractionDigits: 2 }),
-                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
-                            )
+                    h('div', { className: "rounded-md bg-blue-50/80 px-1 py-1 border border-blue-100" },
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('dutyTax')),
+                        h('p', { className: "text-[10px] font-bold text-blue-600 tabular-nums" },
+                            formatCurrencyLocal(exportDutyRub, { maximumFractionDigits: 0 })
                         )
                     ),
-                    // 增值税总和减去关税
-                    h('div', { className: "flex justify-between items-center pt-2 border-t border-slate-200" },
-                        h('div', { className: "flex-1" },
-                            h('p', { className: "text-[9px] text-slate-600 font-bold mb-1" }, t('vatMinusDuty')),
-                            h('p', { className: "text-[8px] text-slate-400" }, t('vatSumMinusDutyFormula'))
-                        ),
-                        h('div', { className: "text-right" },
-                            h('p', { className: "text-sm font-black text-purple-600" },
-                                formatCurrencyLocal(displayVatSumRub - exportDutyRub, { maximumFractionDigits: 2 }),
-                                h('span', { className: "text-[9px] text-slate-400 font-normal ml-1" }, ` ${t('rubPerTon')}`)
-                            )
+                    h('div', { className: "rounded-md bg-violet-50/80 px-1 py-1 border border-violet-100" },
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('vatMinusDuty')),
+                        h('p', { className: "text-[10px] font-black text-violet-700 tabular-nums" },
+                            formatCurrencyLocal(displayVatSumRub - exportDutyRub, { maximumFractionDigits: 0 })
                         )
                     )
                 )
             ),
 
-            // ─────────────────────────────────────────────────────────────
-            // 新增3个控件
-            // ─────────────────────────────────────────────────────────────
-
-            // 1. 期望盈利百分点 + 建议出口价格
-            h('div', { className: "mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200" },
-                // 第一行：百分点输入
-                h('div', { className: "flex items-center justify-between mb-1" },
-                    h('label', { className: "text-[11px] font-bold text-emerald-700" },
-                        t('expectedProfitPercent'), ' (%)'
-                    ),
-                    h('div', { className: "flex items-center gap-1" },
-                        h('input', {
-                            type: 'number',
-                            min: 0,
-                            step: 0.1,
-                            value: expectedProfitPercent,
-                            onChange: (e) => {
-                                const val = e.target.value;
-                                if (val === '' || val === '0') {
-                                    setExpectedProfitPercent && setExpectedProfitPercent(0);
-                                } else {
-                                    const n = parseFloat(val);
-                                    if (!isNaN(n) && n >= 0) setExpectedProfitPercent && setExpectedProfitPercent(n);
-                                }
-                            },
-                            className: "w-20 text-right text-sm border border-emerald-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
-                            placeholder: '0'
-                        }),
-                        h('span', { className: "text-xs text-emerald-600" }, '%')
+            // 收支平衡（保本）：默认折叠，展开见参数与两种 P
+            h('details', { className: "mt-2 rounded-lg border border-slate-200 bg-slate-50/90" },
+                h('summary', { className: "cursor-pointer select-none px-2 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] font-bold text-slate-700 list-none [&::-webkit-details-marker]:hidden" },
+                    h('span', { className: "text-slate-600" }, t('breakEvenExportTitle')),
+                    h('span', { className: "font-mono text-indigo-600 text-[9px] tabular-nums" },
+                        breakEvenExportPriceRub > 0
+                            ? `P+退税 ${formatCurrencyLocal(breakEvenExportPriceRub, { maximumFractionDigits: 0 })}`
+                            : '—',
+                        ' · ',
+                        breakEvenExportPriceNoRebateRub > 0
+                            ? `P ${formatCurrencyLocal(breakEvenExportPriceNoRebateRub, { maximumFractionDigits: 0 })}`
+                            : '—',
+                        ` ${t('rubPerTon')}`
                     )
                 ),
-                // 第二行：每吨期望盈利输入框（与百分点双向联动）
-                h('div', { className: "flex items-center justify-between mb-1" },
-                    h('label', { className: "text-[10px] text-emerald-600" },
-                        t('expectedProfitPerTon')
+                h('div', { className: "px-2 pb-2 space-y-2 border-t border-slate-200 pt-2" },
+                    h('p', { className: "text-[8px] text-slate-500 leading-snug" }, t('breakEvenExportDesc')),
+                    h('div', { className: "text-[8px] text-slate-600 space-y-0.5 font-mono" },
+                        h('p', null,
+                            `C ${t('breakEvenCostShort')} = `,
+                            formatCurrencyLocal(baseRussianArrivalPriceRub ?? 0, { maximumFractionDigits: 2 }),
+                            ` ${t('rubPerTon')}`
+                        ),
+                        h('p', null,
+                            `R ${t('breakEvenRebateShort')} = `,
+                            formatCurrencyLocal(exportVatRebateRub ?? 0, { maximumFractionDigits: 2 }),
+                            ` ${t('rubPerTon')}`
+                        ),
+                        h('p', null, `r = ${exportDutyRate}%`),
+                        includeShortHaulInDuty && h('p', null,
+                            `${t('shortHaulFeePerTon')} (SH) = `,
+                            formatCurrencyLocal(shortHaulFeePerTonDisplay, { maximumFractionDigits: 2 }),
+                            ` ${t('rubPerTon')}`
+                        )
                     ),
-                    h('div', { className: "flex items-center gap-1" },
-                        h('input', {
-                            type: 'number',
-                            step: 10,
-                            value: profitPerTonInput,
-                            onChange: (e) => {
-                                const val = e.target.value;
-                                isUserEditingProfit.current = true;
-                                setProfitPerTonInput(val);
-                                if (val === '') {
-                                    setExpectedProfitPercent && setExpectedProfitPercent(0);
-                                } else {
-                                    const n = parseFloat(val);
-                                    if (!isNaN(n)) {
-                                        const pct = calcPercentFromProfit(n);
-                                        setExpectedProfitPercent && setExpectedProfitPercent(Math.max(0, pct));
+                    breakEvenExportPriceRub > 0
+                        ? h('div', { className: "pt-1" },
+                            h('p', { className: "text-[9px] font-bold text-slate-700" }, t('breakEvenExportResultLabel')),
+                            h('p', { className: "text-sm font-black text-indigo-700" },
+                                'P = ',
+                                formatCurrencyLocal(breakEvenExportPriceRub, { maximumFractionDigits: 0 }),
+                                ` ${t('rubPerTon')}`
+                            ),
+                            h('p', { className: "text-[8px] text-slate-400" }, t('breakEvenRoundedNote'))
+                        )
+                        : h('p', { className: "text-[8px] text-amber-700" }, t('breakEvenNotApplicable')),
+                    h('div', { className: "pt-2 border-t border-slate-200 space-y-1" },
+                        h('p', { className: "text-[9px] font-bold text-slate-700" }, t('breakEvenExportNoRebateTitle')),
+                        h('p', { className: "text-[8px] text-slate-500 leading-snug" }, t('breakEvenExportNoRebateDesc')),
+                        breakEvenExportPriceNoRebateRub > 0
+                            ? h('div', null,
+                                h('p', { className: "text-[9px] font-bold text-slate-700" }, t('breakEvenExportNoRebateResultLabel')),
+                                h('p', { className: "text-sm font-black text-slate-700" },
+                                    'P = ',
+                                    formatCurrencyLocal(breakEvenExportPriceNoRebateRub, { maximumFractionDigits: 0 }),
+                                    ` ${t('rubPerTon')}`
+                                ),
+                                h('p', { className: "text-[8px] text-slate-400" }, t('breakEvenRoundedNote'))
+                            )
+                            : h('p', { className: "text-[8px] text-amber-700" }, t('breakEvenNotApplicableNoRebate'))
+                    )
+                )
+            ),
+
+            h('div', { className: "mt-2" },
+                // 期望盈利 + 建议出口
+                h('div', { className: "min-w-0 p-2 bg-emerald-50 rounded-lg border border-emerald-200" },
+                    h('div', { className: "flex flex-wrap gap-x-3 gap-y-1.5 items-end justify-between" },
+                        h('div', { className: "flex items-center gap-1 min-w-[120px]" },
+                            h('label', { className: "text-[9px] font-bold text-emerald-700 whitespace-nowrap" },
+                                t('expectedProfitPercent')
+                            ),
+                            h('input', {
+                                type: 'number',
+                                min: 0,
+                                step: 0.1,
+                                value: expectedProfitPercent,
+                                onChange: (e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '0') {
+                                        setExpectedProfitPercent && setExpectedProfitPercent(0);
+                                    } else {
+                                        const n = parseFloat(val);
+                                        if (!isNaN(n) && n >= 0) {
+                                            setExpectedProfitPercent && setExpectedProfitPercent(n);
+                                            if (n > 0) {
+                                                setExpectedProfitPerTonRub && setExpectedProfitPerTonRub(undefined);
+                                                setProfitPerTonInput && setProfitPerTonInput('');
+                                            }
+                                        }
                                     }
-                                }
-                                // 短暂延迟后解除标记，让 effect 可以在下次百分点变化时正常同步
-                                setTimeout(() => { isUserEditingProfit.current = false; }, 300);
-                            },
-                            className: "w-24 text-right text-sm border border-emerald-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
-                            placeholder: '0'
-                        }),
-                        h('span', { className: "text-xs text-emerald-500" }, t('rubPerTon'))
-                    )
-                ),
-                // 保本最低利润提示（关税>0时显示）
-                exportDutyRate > 0 && costBase > 0 && h('p', { className: "text-[9px] text-amber-600 mb-1" },
-                    `${t('breakEvenHint') || '保本最低每吨盈利'}: `,
-                    h('span', { className: "font-bold" },
-                        formatCurrencyLocal(minBreakEvenProfit, { maximumFractionDigits: 0 })
-                    ),
-                    ` ${t('rubPerTon')}`
-                ),
-                // 公式说明
-                h('p', { className: "text-[9px] text-emerald-500 mb-2" }, t('suggestedExportFormula')),
-                // 建议出口价格结果
-                suggestedExportPriceRub > 0 && h('div', { className: "pt-2 border-t border-emerald-200 space-y-1" },
-                    h('div', { className: "flex items-center justify-between" },
-                        h('p', { className: "text-[10px] font-bold text-emerald-700" }, t('suggestedExportPrice')),
-                        h('p', { className: "text-base font-black text-emerald-800" },
-                            formatCurrencyLocal(suggestedExportPriceRub, { maximumFractionDigits: 0 }),
-                            h('span', { className: "text-[9px] font-normal ml-1 text-emerald-500" }, t('rubPerTon'))
+                                },
+                                className: "w-16 text-right text-xs border border-emerald-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
+                                placeholder: '0'
+                            }),
+                            h('span', { className: "text-[10px] text-emerald-600" }, '%')
+                        ),
+                        h('div', { className: "flex items-center gap-1 flex-1 min-w-[140px]" },
+                            h('label', { className: "text-[9px] text-emerald-600 font-bold whitespace-nowrap" },
+                                t('expectedProfitPerTon')
+                            ),
+                            h('input', {
+                                type: 'number',
+                                step: 10,
+                                value: profitPerTonInput,
+                                onChange: (e) => {
+                                    const val = e.target.value;
+                                    isUserEditingProfit.current = true;
+                                    setProfitPerTonInput(val);
+                                    if (val === '') {
+                                        setExpectedProfitPerTonRub && setExpectedProfitPerTonRub(undefined);
+                                        setExpectedProfitPercent && setExpectedProfitPercent(0);
+                                    } else {
+                                        const n = parseFloat(val);
+                                        if (!isNaN(n)) {
+                                            setExpectedProfitPerTonRub && setExpectedProfitPerTonRub(n);
+                                            setExpectedProfitPercent && setExpectedProfitPercent(0);
+                                        }
+                                    }
+                                    setTimeout(() => { isUserEditingProfit.current = false; }, 300);
+                                },
+                                className: "w-20 text-right text-xs border border-emerald-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400",
+                                placeholder: '0'
+                            }),
+                            h('span', { className: "text-[10px] text-emerald-500" }, t('rubPerTon'))
                         )
                     ),
-                    suggestedExportDutyRub > 0 && h('div', { className: "flex items-center justify-between" },
-                        h('p', { className: "text-[9px] text-emerald-500" }, t('suggestedExportDuty')),
-                        h('p', { className: "text-sm font-bold text-emerald-600" },
-                            formatCurrencyLocal(suggestedExportDutyRub, { maximumFractionDigits: 0 }),
-                            h('span', { className: "text-[9px] font-normal ml-1 text-emerald-400" }, t('rubPerTon'))
+                    h('p', { className: "text-[8px] text-emerald-600/90 mt-1.5 leading-snug" }, t('suggestedExportFormula')),
+                    suggestedExportPriceRub > 0 && h('div', { className: "mt-1.5 pt-1.5 border-t border-emerald-200/80 space-y-0.5" },
+                        h('div', { className: "flex items-center justify-between gap-2" },
+                            h('p', { className: "text-[9px] font-bold text-emerald-800" }, t('suggestedExportPrice')),
+                            h('p', { className: "text-sm font-black text-emerald-800 tabular-nums" },
+                                formatCurrencyLocal(suggestedExportPriceRub, { maximumFractionDigits: 0 }),
+                                h('span', { className: "text-[8px] font-normal ml-1 text-emerald-500" }, t('rubPerTon'))
+                            )
+                        ),
+                        suggestedExportDutyRub > 0 && h('div', { className: "flex items-center justify-between gap-2" },
+                            h('p', { className: "text-[8px] text-emerald-600" }, t('suggestedExportDuty')),
+                            h('p', { className: "text-xs font-bold text-emerald-600 tabular-nums" },
+                                formatCurrencyLocal(suggestedExportDutyRub, { maximumFractionDigits: 0 }),
+                                h('span', { className: "text-[8px] font-normal ml-1 text-emerald-400" }, t('rubPerTon'))
+                            )
                         )
                     )
                 )
             ),
 
-            // 2. 关税计算是否包含短驳费
-            h('div', { className: "mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200" },
-                h('p', { className: "text-[11px] font-bold text-amber-700 mb-2" },
-                    t('includeShortHaulInDuty')
-                ),
-                h('div', { className: "flex gap-4" },
-                    h('label', { className: "flex items-center gap-1.5 cursor-pointer" },
-                        h('input', {
-                            type: 'radio',
-                            name: 'includeShortHaulInDuty',
-                            checked: includeShortHaulInDuty === false,
-                            onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(false),
-                            className: "accent-amber-600"
-                        }),
-                        h('span', { className: "text-xs text-amber-800" }, t('includeShortHaulNo'))
+            // 关税计算出口价（双列）
+            h('div', { className: "mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200" },
+                h('div', { className: "grid grid-cols-1 sm:grid-cols-2 gap-2" },
+                    h('div', { className: "space-y-1" },
+                        h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDuty')),
+                        h('div', { className: "flex items-center gap-1" },
+                            h('input', {
+                                type: 'number',
+                                min: 0,
+                                step: 100,
+                                value: exportPriceRub === 0 ? '' : exportPriceRub,
+                                onChange: (e) => {
+                                    const val = e.target.value;
+                                    if (val === '') {
+                                        setExportPriceRub && setExportPriceRub(0);
+                                    } else {
+                                        const n = parseFloat(val);
+                                        if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
+                                    }
+                                },
+                                className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                placeholder: t('importSettlementValue')
+                            }),
+                            h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                        ),
+                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyHint')),
+                        effectiveDutyBaseRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
+                            h('span', { className: "text-blue-600" }, `${t('effectiveDutyBase')}: `),
+                            h('span', { className: "font-bold tabular-nums" },
+                                formatCurrencyLocal(effectiveDutyBaseRub, { maximumFractionDigits: 0 }),
+                                ` ${t('rubPerTon')}`
+                            )
+                        )
                     ),
-                    h('label', { className: "flex items-center gap-1.5 cursor-pointer" },
-                        h('input', {
-                            type: 'radio',
-                            name: 'includeShortHaulInDuty',
-                            checked: includeShortHaulInDuty === true,
-                            onChange: () => setIncludeShortHaulInDuty && setIncludeShortHaulInDuty(true),
-                            className: "accent-amber-600"
-                        }),
-                        h('span', { className: "text-xs text-amber-800" }, t('includeShortHaulYes'))
-                    )
-                )
-            ),
-
-            // 3. 出口价格（关税计算用）
-            h('div', { className: "mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200" },
-                h('div', { className: "flex items-center justify-between mb-1" },
-                    h('label', { className: "text-[11px] font-bold text-blue-700" },
-                        t('exportPriceForDuty')
-                    ),
-                    h('div', { className: "flex items-center gap-1" },
-                        h('input', {
-                            type: 'number',
-                            min: 0,
-                            step: 100,
-                            value: exportPriceRub === 0 ? '' : exportPriceRub,
-                            onChange: (e) => {
-                                const val = e.target.value;
-                                if (val === '') {
-                                    setExportPriceRub && setExportPriceRub(0);
-                                } else {
-                                    const n = parseFloat(val);
-                                    if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
-                                }
-                            },
-                            className: "w-28 text-right text-sm border border-blue-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
-                            placeholder: t('importSettlementValue')
-                        }),
-                        h('span', { className: "text-xs text-blue-600" }, 'RUB/t')
-                    )
-                ),
-                h('p', { className: "text-[9px] text-blue-500 mt-1" }, t('exportPriceForDutyHint')),
-                // 显示实际关税基础价
-                effectiveDutyBaseRub > 0 && h('div', { className: "flex items-center justify-between pt-2 mt-2 border-t border-blue-200" },
-                    h('p', { className: "text-[10px] text-blue-600" }, t('effectiveDutyBase')),
-                    h('p', { className: "text-sm font-bold text-blue-700" },
-                        formatCurrencyLocal(effectiveDutyBaseRub, { maximumFractionDigits: 0 }),
-                        h('span', { className: "text-[9px] font-normal ml-1 text-blue-500" }, t('rubPerTon'))
+                    h('div', { className: "space-y-1" },
+                        h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDutyNoRebate')),
+                        h('div', { className: "flex items-center gap-1" },
+                            h('input', {
+                                type: 'number',
+                                min: 0,
+                                step: 100,
+                                value: exportPriceNoRebateRub === 0 ? '' : exportPriceNoRebateRub,
+                                onChange: (e) => {
+                                    const val = e.target.value;
+                                    if (val === '') {
+                                        setExportPriceNoRebateRub && setExportPriceNoRebateRub(0);
+                                    } else {
+                                        const n = parseFloat(val);
+                                        if (!isNaN(n) && n >= 0) setExportPriceNoRebateRub && setExportPriceNoRebateRub(n);
+                                    }
+                                },
+                                className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                placeholder: t('importSettlementValue')
+                            }),
+                            h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                        ),
+                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyNoRebateHint')),
+                        effectiveDutyBaseNoRebateRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
+                            h('span', { className: "text-blue-600" }, `${t('effectiveDutyBaseNoRebate')}: `),
+                            h('span', { className: "font-bold tabular-nums" },
+                                formatCurrencyLocal(effectiveDutyBaseNoRebateRub, { maximumFractionDigits: 0 }),
+                                ` ${t('rubPerTon')}`
+                            )
+                        )
                     )
                 )
             )

@@ -2,7 +2,7 @@
  * App 组件 - 主应用组件（重构版本）
  * 使用模块化组件和工具函数
  */
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useCallback } = React;
 const h = React.createElement;
 
 // 从全局或模块导入组件（延迟获取，确保组件已加载）
@@ -26,6 +26,45 @@ function getConstants() {
         return { DEFAULT_VALUES: {} };
     }
     return window.constants;
+}
+
+/** 与 App.tsx / skuPolicyMarkers 一致：根据服务端行判断是否显示进/口标记 */
+function markersFromSkuPolicyRow(row) {
+    if (!row || typeof row !== 'object') return { hasImport: false, hasExport: false };
+    const id = row.import_duty_rate != null && row.import_duty_rate !== '' ? Number(row.import_duty_rate) : NaN;
+    const importDuty = Number.isFinite(id) ? id : 0;
+    const importName = row.import_policy_name != null && String(row.import_policy_name).trim() !== ''
+        ? String(row.import_policy_name).trim()
+        : '';
+    const hasImport = importDuty > 0 || importName !== '';
+    const mode = row.export_policy_mode != null ? String(row.export_policy_mode) : '';
+    const ed = row.export_duty_rate != null && row.export_duty_rate !== '' ? Number(row.export_duty_rate) : NaN;
+    const exportDuty = Number.isFinite(ed) ? ed : 0;
+    const ev = row.export_vat_rate != null && row.export_vat_rate !== '' ? Number(row.export_vat_rate) : NaN;
+    const exportVat = Number.isFinite(ev) ? ev : NaN;
+    const hasExport =
+        mode === 'with-duty' ||
+        mode === 'planned' ||
+        exportDuty > 0 ||
+        (Number.isFinite(exportVat) && exportVat !== 10);
+    return { hasImport, hasExport };
+}
+
+async function readResponseJson(response) {
+    const text = await response.text();
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+    try {
+        return JSON.parse(trimmed);
+    } catch {
+        return null;
+    }
+}
+
+function errorMessageFromBody(body, response, fallback) {
+    if (body && typeof body === 'object' && body.error) return String(body.error);
+    const st = response.statusText && response.statusText.trim();
+    return st || `HTTP ${response.status}` || fallback;
 }
 
 // 在函数内部获取，而不是在文件顶部
@@ -111,8 +150,10 @@ function App() {
     });
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES?.exportExtras ?? []);
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
+    const [expectedProfitPerTonRub, setExpectedProfitPerTonRub] = useState(undefined);
     const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(true);
     const [exportPriceRub, setExportPriceRub] = useState(0);
+    const [exportPriceNoRebateRub, setExportPriceNoRebateRub] = useState(0);
     
     // 税收政策
     const [dutyRate, setDutyRate] = useState(DEFAULT_VALUES?.dutyRate ?? 0);
@@ -125,6 +166,21 @@ function App() {
     const [exportVatRate, setExportVatRate] = useState(DEFAULT_VALUES?.exportVatRate ?? 10);
     const [exportPlanType, setExportPlanType] = useState(DEFAULT_VALUES?.exportPlanType ?? 'planned');
     const [exportSaveStatus, setExportSaveStatus] = useState(null);
+
+    const [skuPolicyList, setSkuPolicyList] = useState([]);
+    const refreshSkuPolicies = useCallback(async () => {
+        try {
+            const res = await fetch('/api/sku-policies');
+            if (!res.ok) return;
+            const data = await readResponseJson(res);
+            if (Array.isArray(data)) setSkuPolicyList(data);
+        } catch (e) {
+            console.warn('加载 SKU 政策列表失败:', e);
+        }
+    }, []);
+    useEffect(() => {
+        refreshSkuPolicies();
+    }, [refreshSkuPolicies]);
     
     // 语言选择状态（从localStorage读取，默认中文）
     const [language, setLanguage] = useState(() => {
@@ -159,6 +215,13 @@ function App() {
             'overseasArrivalWithoutVat': { zh: '不含增值税退税 (原价)', ru: 'Без возврата НДС (исходная)', en: 'Without VAT Rebate (Base)' },
             'grossProfit': { zh: '毛利 (不含息)', ru: 'Валовая прибыль (без процентов)', en: 'Gross Profit (No Interest)' },
             'productCategory': { zh: '产品类目与规格', ru: 'Категория и спецификация продукта', en: 'Product Category & Specification' },
+            'skuPolicyMarkImport': { zh: '进', ru: 'Имп', en: 'I' },
+            'skuPolicyMarkExport': { zh: '出', ru: 'Экс', en: 'E' },
+            'skuPolicyLegend': {
+                zh: '标记 [进/出]：已为该规格在服务端保存进口 / 出口关税政策（可并存）',
+                ru: 'Метки [Имп/Экс]: для этой спецификации сохранены импортные / экспортные пошлины',
+                en: 'Tags [I/E]: import/export tariff policy saved on server for this SKU'
+            },
             'enterFarmName': { zh: '请输入农场名称', ru: 'Введите название фермы', en: 'Enter Farm Name' },
             'importTaxPolicy': { zh: '进口税收政策', ru: 'Политика импортных налогов', en: 'Import Tax Policy' },
             'exportTaxPolicy': { zh: '出口税收政策', ru: 'Политика экспортных налогов', en: 'Export Tax Policy' },
@@ -230,7 +293,7 @@ function App() {
             'vatCalcExtraPerTonFromContainer': { zh: '杂费（每吨）= 杂费（每柜）÷ 每柜吨数', ru: 'Доп./т = доп./конт. ÷ тонн/конт.', en: 'Extra (per ton) = per-container ÷ tons per container' },
             'vatFormula': { zh: '计算公式: 采购价（不含税） × 增值税率', ru: 'Формула расчета: Цена покупки (без налога) × Ставка НДС', en: 'Formula: Purchase Price (excluding tax) × VAT Rate' },
             'dutyTax': { zh: '关税', ru: 'Пошлина', en: 'Duty' },
-            'dutyFormula': { zh: '计算公式: 海外到站预估 × 关税税率', ru: 'Формула: Прогноз прибытия × Ставка экспортной пошлины', en: 'Formula: Overseas Arrival Estimate × Export Duty Rate' },
+            'dutyFormula': { zh: '计算公式: 出口价格 × 关税税率', ru: 'Формула: Экспортная цена × Ставка экспортной пошлины', en: 'Formula: Export price × Export duty rate' },
             'vatMinusDuty': { zh: '增值税总和 - 关税', ru: 'Сумма НДС − пошлина', en: 'Total VAT − Duty' },
             'vatMinusDutyFormula': { zh: '计算公式: 增值税总和 − 关税', ru: 'Формула: сумма НДС − пошлина', en: 'Formula: total VAT − duty' },
             'domesticSection': { zh: '国内段计算参数', ru: 'Параметры расчета внутреннего сегмента', en: 'Domestic Segment Parameters' },
@@ -343,18 +406,31 @@ function App() {
             'cny': { zh: 'CNY', ru: 'CNY', en: 'CNY' },
             'expectedProfitPercent': { zh: '期望盈利百分点', ru: 'Ожидаемая прибыль (%)', en: 'Expected Profit (%)' },
             'expectedProfitPerTon': { zh: '每吨期望盈利', ru: 'Прибыль на тонну', en: 'Profit per Ton' },
-            'breakEvenHint': { zh: '保本最低每吨盈利', ru: 'Мин. прибыль для безубыточности', en: 'Min profit to break even' },
+            'breakEvenExportTitle': { zh: '收支平衡（保本）出口价', ru: 'Безубыточная экспортная цена (P)', en: 'Break-even export price (P)' },
+            'breakEvenExportDesc': { zh: '总收入 = 出口价 P + 退税 R；总支出 = 前期成本 C（海外到站）+ 出口关税。含短驳入关税时关税 = r×P；不含时为 r×(P−短驳每吨)。平衡：P + R = C + 关税，解出 P（取整）。', ru: 'Выручка: P + R; расходы: C + пошлина. При «включить перевозку в пошлину»: пошлина = r×P; иначе r×(P−перевозка/т). Равенство → P (округление).', en: 'Revenue = P + rebate R; cost = C + export duty. If short haul in duty base: duty = r×P; else r×(P−short haul/t). Solve for P (rounded).' },
+            'breakEvenCostShort': { zh: '（前期成本）', ru: '(C)', en: '(cost C)' },
+            'breakEvenRebateShort': { zh: '（退税）', ru: '(R)', en: '(rebate R)' },
+            'breakEvenExportResultLabel': { zh: '保本出口价（取整）', ru: 'P (округл.)', en: 'Break-even P (rounded)' },
+            'breakEvenRoundedNote': { zh: '结果已忽略小数，取整数卢布/吨。', ru: 'Значение округлено до целых RUB/т.', en: 'Rounded to integer RUB/t.' },
+            'breakEvenNotApplicable': { zh: '当前参数下无法得到正保本出口价（例如 C−R−r×SH ≤ 0 或关税率无效）。', ru: 'При текущих данных положительная безубыточная цена не вычисляется.', en: 'No positive break-even P under current inputs.' },
+            'breakEvenExportNoRebateTitle': { zh: '不含退税的保本出口价', ru: 'Безубыточная цена без учёта возврата НДС', en: 'Break-even export price (no rebate)' },
+            'breakEvenExportNoRebateDesc': { zh: '总收入 = 出口价 P（不计入退税 R）；总支出与关税口径与上行相同。平衡：P = C + 关税，解出 P（取整）。', ru: 'Выручка = P (без R); расходы и база пошлины как выше. Равенство P = C + пошлина → P.', en: 'Revenue = P only (no R); duty base same as above. Balance: P = C + duty.' },
+            'breakEvenExportNoRebateResultLabel': { zh: '保本出口价（不含退税，取整）', ru: 'P без возврата НДС (округл.)', en: 'Break-even P without rebate (rounded)' },
+            'breakEvenNotApplicableNoRebate': { zh: '当前参数下无法得到正的不含退税保本出口价（例如 C−r×SH ≤ 0 或关税率无效）。', ru: 'Положительная цена без возврата НДС не вычисляется.', en: 'No positive break-even P (no rebate) under current inputs.' },
             'expectedProfitHint': { zh: '根据期望盈利倒推建议农场采购价', ru: 'Обратный расчет рекомендуемой цены закупки на ферме', en: 'Reverse calculate suggested farm purchase price' },
             'suggestedFarmPurchasePrice': { zh: '建议农场采购价', ru: 'Рекомендуемая цена закупки', en: 'Suggested Farm Purchase Price' },
             'suggestedExportPrice': { zh: '建议出口价格', ru: 'Рекомендуемая экспортная цена', en: 'Suggested Export Price' },
             'suggestedExportDuty': { zh: '其中关税', ru: 'в т.ч. пошлина', en: 'incl. Duty' },
-            'suggestedExportFormula': { zh: '(采购+短驳+杂费+关税)×(1+盈利点)', ru: '(закупка+перевозка+расходы+пошлина)×(1+прибыль)', en: '(purchase+haul+extras+duty)×(1+profit%)' },
+            'suggestedExportFormula': { zh: '期望盈利%>0：全成本栈按加成与税率反推出口价；%=0 且填每吨盈利：建议出口价=保本出口价+每吨盈利。建议关税=建议出口价×出口税率', ru: 'При прибыли %>0: полная база; при %=0: P=Pс保本+прибыль/т. Пошлина=P×ставка', en: 'If profit %>0: full-cost markup; if %=0 and profit/t: P=break-even P + profit/t. Duty=P×rate' },
             'includeShortHaulInDuty': { zh: '关税计算包含短驳费', ru: 'Включить короткую перевозку в расчет пошлины', en: 'Include Short Haul in Duty Calc' },
             'includeShortHaulYes': { zh: '包含', ru: 'Включить', en: 'Include' },
             'includeShortHaulNo': { zh: '不包含', ru: 'Не включать', en: 'Exclude' },
             'exportPriceForDuty': { zh: '关税计算-出口价格 (RUB/t)', ru: 'Цена экспорта для расчета пошлины (RUB/т)', en: 'Export Price for Duty Calc (RUB/t)' },
             'exportPriceForDutyHint': { zh: '填写此值则用出口价格计算关税，不填则使用进口结算货值', ru: 'Если заполнено, используется для расчета пошлины; иначе используется импортная стоимость', en: 'If filled, use this price for duty calculation; otherwise use import settlement value' },
+            'exportPriceForDutyNoRebate': { zh: '关税计算-出口价格（不含退税）(RUB/t)', ru: 'Цена экспорта без возврата НДС (RUB/т)', en: 'Export price for duty (no rebate) (RUB/t)' },
+            'exportPriceForDutyNoRebateHint': { zh: '不含退税口径的计税用出口价；不填则使用进口结算货值', ru: 'Без возврата НДС; если пусто — импорт', en: 'No-rebate duty export price; if blank, import value' },
             'effectiveDutyBase': { zh: '实际关税基础价', ru: 'Фактическая база для пошлины', en: 'Effective Duty Base' },
+            'effectiveDutyBaseNoRebate': { zh: '实际关税基础价（不含退税）', ru: 'База пошлины (без возврата НДС)', en: 'Effective duty base (no rebate)' },
             'addOverseasExtra': { zh: '添加海外杂费', ru: 'Добавить доп. расходы (заграница)', en: 'Add Overseas Extra' },
             'extraItemName': { zh: '费用项目', ru: 'Статья расходов', en: 'Item Name' },
             'exportExtraPreset_packageCost': { zh: '袋子费用', ru: 'Стоимость упаковочных мешков / тары', en: 'package cost' },
@@ -386,7 +462,7 @@ function App() {
                     return;
                 }
                 
-                const policy = await response.json();
+                const policy = await readResponseJson(response);
                 
                 if (policy) {
                     // 加载入口关税政策
@@ -552,14 +628,14 @@ function App() {
                 }),
             });
 
+            const body = await readResponseJson(response);
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '保存失败');
+                throw new Error(errorMessageFromBody(body, response, '保存失败'));
             }
 
-            const result = await response.json();
-            console.log("保存入口关税政策成功:", result);
+            console.log("保存入口关税政策成功:", body);
             setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
+            refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error) {
             console.error("保存入口关税政策失败:", error);
@@ -591,15 +667,15 @@ function App() {
                 }),
             });
 
+            const exportBody = await readResponseJson(response);
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '保存失败');
+                throw new Error(errorMessageFromBody(exportBody, response, '保存失败'));
             }
 
-            const result = await response.json();
-            console.log("保存出口关税政策成功:", result);
+            console.log("保存出口关税政策成功:", exportBody);
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
+            refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error) {
             console.error("保存出口关税政策失败:", error);
@@ -673,7 +749,9 @@ function App() {
             sellingPriceCny,
             expectedProfitPercent,
             includeShortHaulInDuty,
-            exportPriceRub
+            exportPriceRub,
+            exportPriceNoRebateRub,
+            expectedProfitPerTonRub
         });
     }, [
         exchangeRate, usdCnyRate, farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, dutyRate, vatRate,
@@ -681,31 +759,44 @@ function App() {
         importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
         interestRate, sellingPriceCny,
-        expectedProfitPercent, includeShortHaulInDuty, exportPriceRub
+        expectedProfitPercent, expectedProfitPerTonRub, includeShortHaulInDuty, exportPriceRub, exportPriceNoRebateRub
     ]);
     
-    // 当建议出口价变化时，自动填入关税计算出口价输入框
-    // 若期望盈利为0但有关税，自动填入保本出口价
+    // 当建议出口价变化时，自动填入关税计算出口价输入框（含「不含退税」与主出口价同步规则）
     useEffect(() => {
         const suggested = results.suggestedExportPriceRub ?? 0;
+        const be = results.breakEvenExportPriceRub ?? 0;
+        const beNoRebate = results.breakEvenExportPriceNoRebateRub ?? 0;
+        const tonRaw = expectedProfitPerTonRub;
+        const tonDefined =
+            tonRaw !== undefined && tonRaw !== null && Number.isFinite(Number(tonRaw));
+        const tonProfit = tonDefined ? Math.max(0, Number(tonRaw)) : 0;
+
         if (suggested > 0) {
             setExportPriceRub(Math.round(suggested));
+            if (expectedProfitPercent === 0 && tonDefined) {
+                setExportPriceNoRebateRub(Math.round(beNoRebate + tonProfit));
+            } else {
+                setExportPriceNoRebateRub(Math.round(suggested));
+            }
         } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
-            const tpc = tonsPerContainer || 1;
-            const exportExtrasTotalRub = exportExtras.reduce((sum, item) => {
-                const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
-                return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
-            }, 0);
-            const costBase = farmPriceRubSum + shortHaulFeePerTonTotal + exportExtrasTotalRub;
-            const r = exportDutyRate / 100;
-            if (costBase > 0 && r < 1) {
-                setExportPriceRub(Math.round(costBase / (1 - r)));
+            if (be > 0) {
+                setExportPriceRub(be);
+                setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
             }
         } else if (expectedProfitPercent === 0 && exportDutyRate === 0) {
-            setExportPriceRub(0);
+            const be0 = be;
+            setExportPriceRub(be0 > 0 ? be0 : 0);
+            setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
         }
-    }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
-        farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, tonsPerContainer]);
+    }, [
+        results.suggestedExportPriceRub,
+        results.breakEvenExportPriceRub,
+        results.breakEvenExportPriceNoRebateRub,
+        expectedProfitPercent,
+        exportDutyRate,
+        expectedProfitPerTonRub,
+    ]);
 
     // === 渲染 ===
     return h('div', { className: "min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800" },
@@ -805,11 +896,20 @@ function App() {
                         value: subType,
                         onChange: (e) => handleSubTypeChange(e.target.value)
                     },
-                        PRODUCT_CATEGORIES[category].map(item => 
-                            h('option', { key: item, value: item }, t(`subtype_${item}`) || item)
-                        )
+                        PRODUCT_CATEGORIES[category].map(item => {
+                            const row = skuPolicyList.find((r) => r.category === category && r.sub_type === item);
+                            const { hasImport, hasExport } = markersFromSkuPolicyRow(row);
+                            const baseLabel = t(`subtype_${item}`) || item;
+                            const mi = hasImport ? t('skuPolicyMarkImport') : null;
+                            const me = hasExport ? t('skuPolicyMarkExport') : null;
+                            const marks = [mi, me].filter(Boolean);
+                            const suffix = marks.length > 0 ? `  [${marks.join('/')}]` : '';
+                            const optTitle = marks.length > 0 ? `${baseLabel} — ${marks.join(', ')}` : baseLabel;
+                            return h('option', { key: item, value: item, title: optTitle }, baseLabel + suffix);
+                        })
                     )
-                )
+                ),
+                h('p', { className: "text-[9px] text-slate-400 mt-2 leading-snug" }, t('skuPolicyLegend'))
             ),
             // 计算核心参数 - 横向排列
             h('div', { className: "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6" },
@@ -832,14 +932,21 @@ function App() {
                     exportVatRate,
                     expectedProfitPercent,
                     setExpectedProfitPercent,
+                    expectedProfitPerTonRub,
+                    setExpectedProfitPerTonRub,
                     includeShortHaulInDuty,
                     setIncludeShortHaulInDuty,
                     exportPriceRub,
                     setExportPriceRub,
+                    exportPriceNoRebateRub,
+                    setExportPriceNoRebateRub,
                     suggestedFarmPriceRub: results.suggestedFarmPriceRub ?? 0,
                     suggestedExportPriceRub: results.suggestedExportPriceRub ?? 0,
                     suggestedExportDutyRub: results.suggestedExportDutyRub ?? 0,
                     effectiveDutyBaseRub: results.effectiveDutyBaseRub ?? 0,
+                    effectiveDutyBaseNoRebateRub: results.effectiveDutyBaseNoRebateRub ?? 0,
+                    breakEvenExportPriceRub: results.breakEvenExportPriceRub ?? 0,
+                    breakEvenExportPriceNoRebateRub: results.breakEvenExportPriceNoRebateRub ?? 0,
                     language,
                     t
                 }),
@@ -868,6 +975,7 @@ function App() {
                     setImportPriceRub,
                     importPriceUnit,
                     setImportPriceUnit,
+                    exchangeRate,
                     intlFreightOverseasUsd,
                     setIntlFreightOverseasUsd,
                     intlFreightDomesticUsd,

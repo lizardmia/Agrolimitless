@@ -64,9 +64,13 @@ export interface PricingParams {
   
   // 海外段-期望盈利与关税计算选项
   expectedProfitPercent?: number;       // 期望盈利百分点（0~100）
+  /** 每吨期望盈利 RUB/t；与百分点联动：填此项且百分点为 0 时，建议出口价 = 保本出口价 + 此项 */
+  expectedProfitPerTonRub?: number;
   includeShortHaulInDuty?: boolean;     // 关税计算是否包含短驳费
   exportPriceRub?: number;              // 关税计算使用的出口价格（RUB/t），不填则用进口结算货值
-  
+  /** 关税计算用出口价格（不含退税口径，RUB/t），不填则用进口结算货值 */
+  exportPriceNoRebateRub?: number;
+
   // 税收政策
   dutyRate?: number;
   vatRate?: number;
@@ -103,9 +107,9 @@ export interface PricingResults {
   totalTons: number;
   russianArrivalPriceRub: number;
   russianArrivalPriceCny: number;
-  baseRussianArrivalPriceRub: number;   // 未调整的原始海外到站预估（RUB/t）
+  baseRussianArrivalPriceRub: number;   // 海外到站预估（RUB/t）；「关税不含短驳」时不含短驳费
   exportVatRebateRub?: number;  // 出口增值税退税（RUB/t）
-  exportDutyRub?: number;  // 出口关税（RUB/t）
+  exportDutyRub?: number;  // 出口关税（RUB/t）= 出口计税价×出口关税率；计税价同 effectiveDutyBaseRub
   adjustedRussianArrivalPriceRub?: number;  // 调整后的海外到站预估（RUB/t）
   adjustedRussianArrivalPriceCny?: number;  // 调整后的海外到站预估（CNY/t）
   overseaProfitRubCalculated: number;
@@ -114,6 +118,12 @@ export interface PricingResults {
   suggestedExportPriceRub?: number;     // 建议出口价格（RUB/t）
   suggestedExportDutyRub?: number;      // 建议出口价对应的关税（RUB/t）
   effectiveDutyBaseRub?: number;        // 实际关税计算基础价（出口价格 or 进口结算货值）
+  /** 不含退税口径的实际关税计税价（RUB/t） */
+  effectiveDutyBaseNoRebateRub?: number;
+  /** 保本出口价 RUB/t：P+退税=成本+r×计税口径，取整 */
+  breakEvenExportPriceRub?: number;
+  /** 不含退税的保本出口价 RUB/t：总收入=P，取整 */
+  breakEvenExportPriceNoRebateRub?: number;
   // 国内段
   importValueCny: number;
   intlFreightOverseasCnyPerTon: number;

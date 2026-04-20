@@ -60,6 +60,7 @@ export interface SidebarProps {
     setIntlFreightDomesticUsd: (value: number) => void;
     insuranceRate: number;
     setInsuranceRate: (value: number) => void;
+    exchangeRate?: number;
     domesticShortHaulCny: number;
     setDomesticShortHaulCny: (value: number) => void;
     domesticExtras: DomesticExtra[];

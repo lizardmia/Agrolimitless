@@ -14,6 +14,7 @@ export interface PolicySectionProps {
     subType: string;
     saveStatus: string | null;
     savePolicy: () => void;
+    importSaved?: boolean;
 }
 
 export declare function PolicySection(props: PolicySectionProps): JSX.Element;

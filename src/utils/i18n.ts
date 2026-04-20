@@ -109,6 +109,48 @@ const translations: Translations = {
         ru: 'Категория и спецификация продукта',
         en: 'Product Category & Specification'
     },
+    /** SKU 下拉中：已保存进口关税政策 */
+    'skuPolicyMarkImport': {
+        zh: '进',
+        ru: 'Имп',
+        en: 'I'
+    },
+    /** SKU 下拉中：已保存出口关税政策 */
+    'skuPolicyMarkExport': {
+        zh: '出',
+        ru: 'Экс',
+        en: 'E'
+    },
+    'skuPolicyLegend': {
+        zh: '标记 [进/出]：已为该规格在服务端保存进口 / 出口关税政策（可并存）',
+        ru: 'Метки [Имп/Экс]: для этой спецификации сохранены импортные / экспортные пошлины',
+        en: 'Tags [I/E]: import/export tariff policy saved on server for this SKU'
+    },
+    'skuSavedImportLabel': {
+        zh: '进口政策',
+        ru: 'Имп. политика',
+        en: 'Import'
+    },
+    'skuSavedExportLabel': {
+        zh: '出口政策',
+        ru: 'Эксп. политика',
+        en: 'Export'
+    },
+    'skuSavedYes': {
+        zh: '已保存',
+        ru: 'Сохранено',
+        en: 'Saved'
+    },
+    'skuSavedNo': {
+        zh: '未保存',
+        ru: 'Нет',
+        en: 'Not saved'
+    },
+    'policySavedBadge': {
+        zh: '已保存',
+        ru: 'Сохр.',
+        en: 'Saved'
+    },
     'enterFarmName': {
         zh: '请输入农场名称',
         ru: 'Введите название фермы',
@@ -484,9 +526,9 @@ const translations: Translations = {
         en: 'Duty'
     },
     'dutyFormula': {
-        zh: '计算公式: 海外到站预估 × 关税税率',
-        ru: 'Формула: Прогноз прибытия × Ставка экспортной пошлины',
-        en: 'Formula: Overseas Arrival Estimate × Export Duty Rate'
+        zh: '计算公式: 出口价格 × 关税税率',
+        ru: 'Формула: Экспортная цена × Ставка экспортной пошлины',
+        en: 'Formula: Export price × Export duty rate'
     },
     'vatMinusDuty': {
         zh: '增值税总和 - 关税',
@@ -1004,10 +1046,60 @@ const translations: Translations = {
         ru: 'Прибыль на тонну',
         en: 'Profit per Ton'
     },
-    'breakEvenHint': {
-        zh: '保本最低每吨盈利',
-        ru: 'Мин. прибыль для безубыточности',
-        en: 'Min profit to break even'
+    'breakEvenExportTitle': {
+        zh: '收支平衡（保本）出口价',
+        ru: 'Безубыточная экспортная цена (P)',
+        en: 'Break-even export price (P)'
+    },
+    'breakEvenExportDesc': {
+        zh: '总收入 = 出口价 P + 退税 R；总支出 = 前期成本 C（海外到站）+ 出口关税。含短驳入关税时关税 = r×P；不含时为 r×(P−短驳每吨)。平衡：P + R = C + 关税，解出 P（取整）。',
+        ru: 'Выручка: P + R; расходы: C + пошлина. При «включить перевозку в пошлину»: пошлина = r×P; иначе r×(P−перевозка/т). Равенство → P (округление).',
+        en: 'Revenue = P + rebate R; cost = C + export duty. If short haul in duty base: duty = r×P; else r×(P−short haul/t). Solve for P (rounded).'
+    },
+    'breakEvenCostShort': {
+        zh: '（前期成本）',
+        ru: '(C)',
+        en: '(cost C)'
+    },
+    'breakEvenRebateShort': {
+        zh: '（退税）',
+        ru: '(R)',
+        en: '(rebate R)'
+    },
+    'breakEvenExportResultLabel': {
+        zh: '保本出口价（取整）',
+        ru: 'P (округл.)',
+        en: 'Break-even P (rounded)'
+    },
+    'breakEvenRoundedNote': {
+        zh: '结果已忽略小数，取整数卢布/吨。',
+        ru: 'Значение округлено до целых RUB/т.',
+        en: 'Rounded to integer RUB/t.'
+    },
+    'breakEvenNotApplicable': {
+        zh: '当前参数下无法得到正保本出口价（例如 C−R−r×SH ≤ 0 或关税率无效）。',
+        ru: 'При текущих данных положительная безубыточная цена не вычисляется.',
+        en: 'No positive break-even P under current inputs.'
+    },
+    'breakEvenExportNoRebateTitle': {
+        zh: '不含退税的保本出口价',
+        ru: 'Безубыточная цена без учёта возврата НДС',
+        en: 'Break-even export price (no rebate)'
+    },
+    'breakEvenExportNoRebateDesc': {
+        zh: '总收入 = 出口价 P（不计入退税 R）；总支出与关税口径与上行相同。平衡：P = C + 关税，解出 P（取整）。',
+        ru: 'Выручка = P (без R); расходы и база пошлины как выше. Равенство P = C + пошлина → P.',
+        en: 'Revenue = P only (no R); duty base same as above. Balance: P = C + duty.'
+    },
+    'breakEvenExportNoRebateResultLabel': {
+        zh: '保本出口价（不含退税，取整）',
+        ru: 'P без возврата НДС (округл.)',
+        en: 'Break-even P without rebate (rounded)'
+    },
+    'breakEvenNotApplicableNoRebate': {
+        zh: '当前参数下无法得到正的不含退税保本出口价（例如 C−r×SH ≤ 0 或关税率无效）。',
+        ru: 'Положительная цена без возврата НДС не вычисляется.',
+        en: 'No positive break-even P (no rebate) under current inputs.'
     },
     'expectedProfitHint': {
         zh: '根据期望盈利倒推建议农场采购价',
@@ -1030,9 +1122,9 @@ const translations: Translations = {
         en: 'incl. Duty'
     },
     'suggestedExportFormula': {
-        zh: '(采购+短驳+杂费+关税)×(1+盈利点)',
-        ru: '(закупка+перевозка+расходы+пошлина)×(1+прибыль)',
-        en: '(purchase+haul+extras+duty)×(1+profit%)'
+        zh: '期望盈利%>0：全成本栈按加成与税率反推出口价；%=0 且填每吨盈利：建议出口价=保本出口价+每吨盈利。建议关税=建议出口价×出口税率',
+        ru: 'При прибыли %>0: полная база; при %=0 и прибыли/т: P=Pс保本+прибыль/т. Пошлина=P×ставка',
+        en: 'If profit %>0: full-cost markup; if %=0 and profit/t: P=break-even P + profit/t. Duty=P×export duty rate'
     },
     'includeShortHaulInDuty': {
         zh: '关税计算包含短驳费',
@@ -1063,6 +1155,21 @@ const translations: Translations = {
         zh: '实际关税基础价',
         ru: 'Фактическая база для пошлины',
         en: 'Effective Duty Base'
+    },
+    'exportPriceForDutyNoRebate': {
+        zh: '关税计算-出口价格（不含退税）(RUB/t)',
+        ru: 'Цена экспорта без возврата НДС для пошлины (RUB/т)',
+        en: 'Export price for duty (no rebate) (RUB/t)'
+    },
+    'exportPriceForDutyNoRebateHint': {
+        zh: '不含退税口径的计税用出口价；不填则使用进口结算货值',
+        ru: 'Без возврата НДС; если пусто — импортная стоимость',
+        en: 'Duty base export price excluding rebate; if blank, import settlement value'
+    },
+    'effectiveDutyBaseNoRebate': {
+        zh: '实际关税基础价（不含退税）',
+        ru: 'База пошлины (без возврата НДС)',
+        en: 'Effective duty base (no rebate)'
     },
     'addOverseasExtra': {
         zh: '添加海外杂费',

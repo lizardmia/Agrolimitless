@@ -6,6 +6,7 @@ function DomesticSection({
     setImportPriceRub,
     importPriceUnit,
     setImportPriceUnit,
+    exchangeRate = 1,
     intlFreightOverseasUsd,
     setIntlFreightOverseasUsd,
     intlFreightDomesticUsd,
@@ -26,7 +27,14 @@ function DomesticSection({
 }) {
     const h = React.createElement;
     const { Icon } = window;
-    
+
+    const er = Number(exchangeRate) > 0 ? Number(exchangeRate) : 1;
+    const ivRub = Number(importPriceRub) || 0;
+    /** RUB→CNY：卢布/人民币；单位与当前 RUB 单位一致（每吨或每柜） */
+    const importSettlementCnyDisplay = ivRub > 0 ? ivRub / er : 0;
+    const importSettlementCnySuffix =
+        importPriceUnit === 'RUB/t' ? t('cnyPerTon') : t('cnyPerContainer');
+
     return h('div', { className: "bg-orange-50/50 p-4 rounded-2xl border border-orange-100 space-y-3 shadow-sm" },
         h('h4', { className: "text-sm font-bold text-orange-600 flex items-center gap-2 italic uppercase tracking-wider underline decoration-orange-200 decoration-2 underline-offset-4" },
             h(Icon, { name: 'Truck', size: 14 }),
@@ -50,7 +58,14 @@ function DomesticSection({
                     },
                     placeholder: "0",
                     className: "w-full p-1 bg-transparent border-none text-xl font-black text-orange-800 focus:ring-0 outline-none"
-                })
+                }),
+                ivRub > 0 && h('p', { className: "text-[10px] font-bold text-indigo-600 mt-0.5 tabular-nums flex flex-wrap items-baseline gap-x-1 gap-y-0" },
+                    h('span', { className: "text-slate-400 font-normal" }, '≈ ¥'),
+                    h('span', null,
+                        importSettlementCnyDisplay.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                    ),
+                    h('span', { className: "text-[9px] text-slate-500 font-normal" }, importSettlementCnySuffix)
+                )
             ),
             h('div', { className: "grid grid-cols-2 gap-2" },
                 h('div', null,

@@ -2,7 +2,7 @@
  * App 组件 - 主应用组件（TypeScript + Vite 版本）
  * 使用模块化组件和工具函数
  */
-import { useState, useMemo, useEffect, createElement } from 'react';
+import { useState, useMemo, useEffect, useCallback, createElement } from 'react';
 import { Header } from './Header';
 // 导入 JS 组件（通过类型声明文件）
 import { ExchangeRateCards } from './ExchangeRateCards';
@@ -18,6 +18,8 @@ import { DEFAULT_VALUES } from '../config/constants.js';
 import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
 import { createTranslator, type Language } from '../utils/i18n.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
+import { markersFromSkuPolicyRow } from '../utils/skuPolicyMarkers.ts';
+import { readResponseJson, errorMessageFromBody } from '../utils/httpJson.ts';
 
 export function App() {
     // === 认证状态 ===
@@ -101,8 +103,12 @@ export function App() {
     const [exportExtras, setExportExtras] = useState(DEFAULT_VALUES.exportExtras);
     // 期望盈利与关税计算选项
     const [expectedProfitPercent, setExpectedProfitPercent] = useState(0);
+    /** 每吨期望盈利（RUB/t）；与百分点二选一：有值且百分点为 0 时建议价=保本价+此项 */
+    const [expectedProfitPerTonRub, setExpectedProfitPerTonRub] = useState<number | undefined>(undefined);
     const [includeShortHaulInDuty, setIncludeShortHaulInDuty] = useState(true);
     const [exportPriceRub, setExportPriceRub] = useState(0);
+    /** 关税计算用：不含退税口径的出口价（不填则与主字段一致走进口结算货值fallback，由计算层处理） */
+    const [exportPriceNoRebateRub, setExportPriceNoRebateRub] = useState(0);
     
     // 税收政策
     const [dutyRate, setDutyRate] = useState(DEFAULT_VALUES.dutyRate);
@@ -115,6 +121,24 @@ export function App() {
     const [exportVatRate, setExportVatRate] = useState(DEFAULT_VALUES.exportVatRate);
     const [exportPlanType, setExportPlanType] = useState<'planned' | 'unplanned'>(DEFAULT_VALUES.exportPlanType as 'planned' | 'unplanned');
     const [exportSaveStatus, setExportSaveStatus] = useState<string | null>(null);
+
+    /** 全量 SKU 关税政策（用于规格下拉 [进][出] 标记） */
+    const [skuPolicyList, setSkuPolicyList] = useState<Record<string, unknown>[]>([]);
+
+    const refreshSkuPolicies = useCallback(async () => {
+        try {
+            const res = await fetch('/api/sku-policies');
+            if (!res.ok) return;
+            const data = await readResponseJson<unknown[]>(res);
+            if (Array.isArray(data)) setSkuPolicyList(data as Record<string, unknown>[]);
+        } catch (e) {
+            console.warn('加载 SKU 政策列表失败:', e);
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshSkuPolicies();
+    }, [refreshSkuPolicies]);
     
     // 从数据库加载SKU的关税政策
     useEffect(() => {
@@ -129,7 +153,7 @@ export function App() {
                     return;
                 }
                 
-                const policy = await response.json();
+                const policy = await readResponseJson<Record<string, unknown>>(response);
                 
                 if (policy) {
                     // 加载入口关税政策
@@ -140,7 +164,7 @@ export function App() {
                         setVatRate(Number(policy.import_vat_rate));
                     }
                     if (policy.import_policy_name) {
-                        setPolicyName(policy.import_policy_name);
+                        setPolicyName(String(policy.import_policy_name));
                     }
                     
                     // 加载出口关税政策
@@ -258,14 +282,14 @@ export function App() {
                 }),
             });
 
+            const body = await readResponseJson<{ error?: string }>(response);
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '保存失败');
+                throw new Error(errorMessageFromBody(body, response, '保存失败'));
             }
 
-            const result = await response.json();
-            console.log("保存入口关税政策成功:", result);
+            console.log("保存入口关税政策成功:", body);
             setSaveStatus(`${t('saveSuccess')} [${subType}] ${t('importTaxPolicy')}: ${t('duty')}${dutyRate}%, ${t('vat')}${vatRate}%`);
+            void refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error: any) {
             console.error("保存入口关税政策失败:", error);
@@ -331,11 +355,17 @@ export function App() {
                     // 不清空农场名称，保留输入
                     return;
                 }
-                const error = await response.json();
-                throw new Error(error.error || '保存失败');
+                let errMsg = '保存失败';
+                try {
+                    const err = text.trim() ? JSON.parse(text) : null;
+                    if (err && typeof err === 'object' && err.error) errMsg = String(err.error);
+                } catch {
+                    /* ignore */
+                }
+                throw new Error(errMsg);
             }
 
-            const result = await response.json();
+            const result = await readResponseJson(response);
             console.log("保存农场记录成功:", result);
             setFarmSaveStatus(`${t('saveSuccess')} ${t('farmRecords')}: ${farmName.trim()}`);
             setTimeout(() => setFarmSaveStatus(null), 3000);
@@ -398,8 +428,8 @@ export function App() {
                 throw new Error(`加载失败: ${response.status}`);
             }
             
-            const data = await response.json();
-            setFarmRecords(data || []);
+            const data = await readResponseJson<unknown[]>(response);
+            setFarmRecords(Array.isArray(data) ? data : []);
         } catch (error: any) {
             console.error('加载农场记录失败:', error);
             // 尝试使用 localStorage 作为回退
@@ -451,8 +481,14 @@ export function App() {
                         return;
                     }
                 }
-                const error = await response.json();
-                throw new Error(error.error || '删除失败');
+                let errMsg = '删除失败';
+                try {
+                    const err = text.trim() ? JSON.parse(text) : null;
+                    if (err && typeof err === 'object' && err.error) errMsg = String(err.error);
+                } catch {
+                    /* ignore */
+                }
+                throw new Error(errMsg);
             }
 
             // 重新加载记录
@@ -500,15 +536,15 @@ export function App() {
                 }),
             });
 
+            const exportBody = await readResponseJson<{ error?: string }>(response);
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || '保存失败');
+                throw new Error(errorMessageFromBody(exportBody, response, '保存失败'));
             }
 
-            const result = await response.json();
-            console.log("保存出口关税政策成功:", result);
+            console.log("保存出口关税政策成功:", exportBody);
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
+            void refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error: any) {
             console.error("保存出口关税政策失败:", error);
@@ -590,7 +626,9 @@ export function App() {
             sellingPriceCny,
             expectedProfitPercent,
             includeShortHaulInDuty,
-            exportPriceRub
+            exportPriceRub,
+            exportPriceNoRebateRub,
+            expectedProfitPerTonRub
         });
     }, [
         exchangeRate, usdCnyRate, farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, dutyRate, vatRate,
@@ -598,33 +636,46 @@ export function App() {
         importPriceRub, importPriceUnit, intlFreightOverseasUsd, intlFreightDomesticUsd, insuranceRate, domesticShortHaulCny,
         domesticExtras, totalContainers, tonsPerContainer, collectionDays,
         interestRate, sellingPriceCny,
-        expectedProfitPercent, includeShortHaulInDuty, exportPriceRub
+        expectedProfitPercent, expectedProfitPerTonRub, includeShortHaulInDuty, exportPriceRub, exportPriceNoRebateRub
     ]);
     
-    // 当建议出口价变化时，自动填入关税计算出口价输入框
-    // 若期望盈利为0但有关税，自动填入保本出口价（m=0 时 P = costBase/(1-r)）
+    // 当建议出口价变化时，自动填入关税计算出口价输入框（含「不含退税」与主出口价同步规则）
+    // 若期望盈利为0，自动填入保本出口价 P（总收入 P+退税 = 总支出 C+关税，见 calculatePricing.breakEvenExportPriceRub）
+    // 「不含退税」：按吨盈利时为保本（不含退税）+ 每吨盈利；否则与建议价同值；保本分支用 breakEvenExportPriceNoRebateRub
     useEffect(() => {
         const suggested = results.suggestedExportPriceRub ?? 0;
+        const be = results.breakEvenExportPriceRub ?? 0;
+        const beNoRebate = results.breakEvenExportPriceNoRebateRub ?? 0;
+        const tonRaw = expectedProfitPerTonRub;
+        const tonDefined =
+            tonRaw !== undefined && tonRaw !== null && Number.isFinite(Number(tonRaw));
+        const tonProfit = tonDefined ? Math.max(0, Number(tonRaw)) : 0;
+
         if (suggested > 0) {
             setExportPriceRub(Math.round(suggested));
+            if (expectedProfitPercent === 0 && tonDefined) {
+                setExportPriceNoRebateRub(Math.round(beNoRebate + tonProfit));
+            } else {
+                setExportPriceNoRebateRub(Math.round(suggested));
+            }
         } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
-            // 计算保本出口价：令盈利点=0，P = costBase / (1-r)
-            const tpc = tonsPerContainer || 1;
-            const exportExtrasTotalRub = exportExtras.reduce((sum: number, item: any) => {
-                const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
-                return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
-            }, 0);
-            const costBase = farmPriceRubSum + shortHaulFeePerTonTotal + exportExtrasTotalRub;
-            const r = exportDutyRate / 100;
-            if (costBase > 0 && r < 1) {
-                const breakEvenPrice = Math.round(costBase / (1 - r));
-                setExportPriceRub(breakEvenPrice);
+            if (be > 0) {
+                setExportPriceRub(be);
+                setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
             }
         } else if (expectedProfitPercent === 0 && exportDutyRate === 0) {
-            setExportPriceRub(0);
+            const be0 = be;
+            setExportPriceRub(be0 > 0 ? be0 : 0);
+            setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
         }
-    }, [results.suggestedExportPriceRub, expectedProfitPercent, exportDutyRate,
-        farmPriceRubSum, shortHaulFeePerTonTotal, exportExtras, tonsPerContainer]);
+    }, [
+        results.suggestedExportPriceRub,
+        results.breakEvenExportPriceRub,
+        results.breakEvenExportPriceNoRebateRub,
+        expectedProfitPercent,
+        exportDutyRate,
+        expectedProfitPerTonRub,
+    ]);
     
     // === 认证处理 ===
     const handleLoginSuccess = () => {
@@ -911,11 +962,34 @@ export function App() {
                             value={subType}
                             onChange={(e) => handleSubTypeChange(e.target.value)}
                         >
-                            {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => 
-                                <option key={item} value={item}>{t(`subtype_${item}`) || item}</option>
-                            )}
+                            {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => {
+                                const row = skuPolicyList.find(
+                                    (r) => r.category === category && r.sub_type === item
+                                );
+                                const { hasImport, hasExport } = markersFromSkuPolicyRow(row);
+                                const baseLabel = t(`subtype_${item}`) || item;
+                                const marks = [
+                                    hasImport ? t('skuPolicyMarkImport') : null,
+                                    hasExport ? t('skuPolicyMarkExport') : null
+                                ].filter(Boolean);
+                                const suffix = marks.length > 0 ? `  [${marks.join('/')}]` : '';
+                                const titleParts: string[] = [];
+                                if (hasImport) titleParts.push(String(t('skuPolicyMarkImport')));
+                                if (hasExport) titleParts.push(String(t('skuPolicyMarkExport')));
+                                const optTitle =
+                                    marks.length > 0
+                                        ? `${baseLabel} — ${titleParts.join(', ')}`
+                                        : baseLabel;
+                                return (
+                                    <option key={item} value={item} title={optTitle}>
+                                        {baseLabel}
+                                        {suffix}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
+                    <p className="text-[9px] text-slate-400 mt-2 leading-snug">{t('skuPolicyLegend')}</p>
                 </div>
                 
                 {/* 计算核心参数 - 横向排列 */}
@@ -941,14 +1015,21 @@ export function App() {
                             exportVatRate,
                             expectedProfitPercent,
                             setExpectedProfitPercent,
+                            expectedProfitPerTonRub,
+                            setExpectedProfitPerTonRub,
                             includeShortHaulInDuty,
                             setIncludeShortHaulInDuty,
                             exportPriceRub,
                             setExportPriceRub,
+                            exportPriceNoRebateRub,
+                            setExportPriceNoRebateRub,
                             suggestedFarmPriceRub: results.suggestedFarmPriceRub ?? 0,
                             suggestedExportPriceRub: results.suggestedExportPriceRub ?? 0,
                             suggestedExportDutyRub: results.suggestedExportDutyRub ?? 0,
                             effectiveDutyBaseRub: results.effectiveDutyBaseRub ?? 0,
+                            effectiveDutyBaseNoRebateRub: results.effectiveDutyBaseNoRebateRub ?? 0,
+                            breakEvenExportPriceRub: results.breakEvenExportPriceRub ?? 0,
+                            breakEvenExportPriceNoRebateRub: results.breakEvenExportPriceNoRebateRub ?? 0,
                             language,
                             t
                         }
@@ -985,6 +1066,7 @@ export function App() {
                             setImportPriceRub,
                             importPriceUnit,
                             setImportPriceUnit: setImportPriceUnit as any,
+                            exchangeRate,
                             intlFreightOverseasUsd,
                             setIntlFreightOverseasUsd,
                             intlFreightDomesticUsd,

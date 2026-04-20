@@ -54,12 +54,25 @@ function calculatePricing(params) {
         // 海外段-期望盈利与关税计算选项
         expectedProfitPercent = 0,
         includeShortHaulInDuty = false,
-        exportPriceRub = 0
+        exportPriceRub = 0,
+        exportPriceNoRebateRub,
+        expectedProfitPerTonRub
     } = params;
 
     const totalTons = totalContainers * tonsPerContainer;
     const tpc = tonsPerContainer || 1;
-    
+
+    const normalizedImportPriceRubPerTon =
+        importPriceUnit === 'RUB/t' ? importPriceRub : importPriceRub / tpc;
+    const exportPriceForDutyRub =
+        exportPriceRub > 0 ? Number(exportPriceRub) : normalizedImportPriceRubPerTon;
+    const exportPriceNoRebateForDutyRub =
+        exportPriceNoRebateRub !== undefined &&
+        exportPriceNoRebateRub !== null &&
+        Number(exportPriceNoRebateRub) > 0
+            ? Number(exportPriceNoRebateRub)
+            : normalizedImportPriceRubPerTon;
+
     // === 海外段计算 ===
     let shortHaulFeePerTon =
         (shortHaulDistanceKm * 2 * shortHaulPricePerKmPerContainer) / tpc;
@@ -76,60 +89,85 @@ function calculatePricing(params) {
         const value = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
         return sum + (item.unit === 'RUB/ton' ? value : value / tpc);
     }, 0);
-    
-    // 基础海外到站预估（未调整）
-    const baseRussianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
-    
-    // === 先算建议出口价（供后续关税计算使用）===
-    // 定义：利润 = costBase × m（加成率）
-    // P = costBase*(1+m)/(1-r)
-    const suggestedExportPriceBase = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+
+    const fullOverseaStackRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub;
+    // 海外到站预估：关税计算不包含短驳费时不计入短驳费
+    const baseRussianArrivalPriceRub = includeShortHaulInDuty
+        ? fullOverseaStackRub
+        : farmPriceRub + exportExtrasTotalRub;
+
+    const suggestedExportPriceBase = fullOverseaStackRub;
     const m = expectedProfitPercent / 100;
     const r = exportDutyRate / 100;
+
+    let exportVatRebateRub = 0;
+    if (exportVatRate > 0) {
+        const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
+        exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
+    }
+    const rebateRub = exportVatRebateRub;
+
+    let breakEvenExportPriceRub = 0;
+    if (exportDutyRate > 0 && r < 1) {
+        const numerator = includeShortHaulInDuty
+            ? baseRussianArrivalPriceRub - rebateRub
+            : baseRussianArrivalPriceRub - rebateRub + r * shortHaulFeePerTon;
+        if (numerator > 0) {
+            breakEvenExportPriceRub = Math.round(numerator / (1 - r));
+        }
+    } else {
+        breakEvenExportPriceRub = Math.round(Math.max(0, baseRussianArrivalPriceRub - rebateRub));
+    }
+
+    let breakEvenExportPriceNoRebateRub = 0;
+    if (exportDutyRate > 0 && r < 1) {
+        const numeratorNoRebate = includeShortHaulInDuty
+            ? baseRussianArrivalPriceRub
+            : baseRussianArrivalPriceRub + r * shortHaulFeePerTon;
+        if (numeratorNoRebate > 0) {
+            breakEvenExportPriceNoRebateRub = Math.round(numeratorNoRebate / (1 - r));
+        }
+    } else {
+        breakEvenExportPriceNoRebateRub = Math.round(Math.max(0, baseRussianArrivalPriceRub));
+    }
+
     let suggestedExportPriceRub = 0;
+    const tonProfitDefined =
+        expectedProfitPerTonRub !== undefined &&
+        expectedProfitPerTonRub !== null &&
+        Number.isFinite(Number(expectedProfitPerTonRub));
+    const tonProfit = tonProfitDefined ? Number(expectedProfitPerTonRub) : NaN;
+
     if (expectedProfitPercent > 0 && r < 1) {
         if (includeShortHaulInDuty) {
             suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
         } else {
-            suggestedExportPriceRub = (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
+            suggestedExportPriceRub =
+                (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
         }
         if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
+    } else if (tonProfitDefined && expectedProfitPercent === 0) {
+        suggestedExportPriceRub = Math.max(0, breakEvenExportPriceRub + Math.max(0, tonProfit));
     }
-    // === 出口板块政策计算 ===
-    let exportVatRebateRub = 0;
+
     let exportDutyRub = 0;
     const adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
-
-    if (exportPolicyMode === 'no-duty') {
-        if (exportVatRate > 0) {
-            const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
-            exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
-        }
-    } else if (exportPolicyMode === 'with-duty') {
-        if (exportVatRate > 0) {
-            const priceExcludingVat = farmPriceRub / (1 + exportVatRate / 100);
-            exportVatRebateRub = priceExcludingVat * (exportVatRate / 100);
-        }
-        exportDutyRub = baseRussianArrivalPriceRub * (exportDutyRate / 100);
+    if (exportPolicyMode === 'with-duty') {
+        exportDutyRub = exportPriceForDutyRub * (exportDutyRate / 100);
     }
 
     const russianArrivalPriceRub = baseRussianArrivalPriceRub;
     const russianArrivalPriceCny = russianArrivalPriceRub / (exchangeRate || 1);
     const adjustedRussianArrivalPriceCny = russianArrivalPriceCny;
-    
-    // 进口结算货值标准化
-    const normalizedImportPriceRubPerTon = importPriceUnit === 'RUB/t' 
-        ? importPriceRub 
-        : importPriceRub / tpc;
-    
-    // 海外段利润
+
     const overseaProfitRubCalculated = normalizedImportPriceRubPerTon - russianArrivalPriceRub;
-    
+
     const suggestedExportDutyRub = suggestedExportPriceRub > 0 ? suggestedExportPriceRub * r : 0;
     const suggestedFarmPriceRub = 0;
 
-    const effectiveDutyBaseRub = baseRussianArrivalPriceRub;
-    
+    const effectiveDutyBaseRub = exportPriceForDutyRub;
+    const effectiveDutyBaseNoRebateRub = exportPriceNoRebateForDutyRub;
+
     // === 国内段计算 ===
     // 进口结算货值(人民币)
     const importValueCny = normalizedImportPriceRubPerTon / (exchangeRate || 1);
@@ -184,6 +222,9 @@ function calculatePricing(params) {
         suggestedExportPriceRub,
         suggestedExportDutyRub,
         effectiveDutyBaseRub,
+        effectiveDutyBaseNoRebateRub,
+        breakEvenExportPriceRub,
+        breakEvenExportPriceNoRebateRub,
         importValueCny,
         intlFreightOverseasCnyPerTon,
         intlFreightDomesticCnyPerTon,

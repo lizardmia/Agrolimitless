@@ -61,6 +61,7 @@ function Sidebar({
     setSellingPriceCny,
     insuranceRate,
     setInsuranceRate,
+    exchangeRate = 1,
     language = 'zh',
     t = (key) => key
 }) {
@@ -148,6 +149,7 @@ function Sidebar({
                     setImportPriceRub,
                     importPriceUnit,
                     setImportPriceUnit,
+                    exchangeRate,
                     intlFreightOverseasUsd,
                     setIntlFreightOverseasUsd,
                     intlFreightDomesticUsd,
