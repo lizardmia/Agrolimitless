@@ -67,6 +67,20 @@ function errorMessageFromBody(body, response, fallback) {
     return st || `HTTP ${response.status}` || fallback;
 }
 
+const SKU_SAVE_MARKS_KEY = 'skuSaveMarks';
+
+function skuKey(cat, sub) {
+    return `${cat}::${sub}`;
+}
+
+function mergeSkuMarkers(server, local) {
+    if (!local) return server;
+    return {
+        hasImport: server.hasImport || !!local.importSaved,
+        hasExport: server.hasExport || !!local.exportSaved,
+    };
+}
+
 // 在函数内部获取，而不是在文件顶部
 function App() {
     // 从全局获取认证函数
@@ -181,6 +195,42 @@ function App() {
     useEffect(() => {
         refreshSkuPolicies();
     }, [refreshSkuPolicies]);
+
+    const [skuSaveMarks, setSkuSaveMarks] = useState(() => {
+        try {
+            const raw = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SKU_SAVE_MARKS_KEY);
+            if (raw) return JSON.parse(raw);
+        } catch (e) {
+            /* ignore */
+        }
+        return {};
+    });
+
+    const markSkuImportSaved = useCallback(() => {
+        setSkuSaveMarks((prev) => {
+            const key = skuKey(category, subType);
+            const next = { ...prev, [key]: { ...prev[key], importSaved: true } };
+            try {
+                sessionStorage.setItem(SKU_SAVE_MARKS_KEY, JSON.stringify(next));
+            } catch (e) {
+                /* ignore */
+            }
+            return next;
+        });
+    }, [category, subType]);
+
+    const markSkuExportSaved = useCallback(() => {
+        setSkuSaveMarks((prev) => {
+            const key = skuKey(category, subType);
+            const next = { ...prev, [key]: { ...prev[key], exportSaved: true } };
+            try {
+                sessionStorage.setItem(SKU_SAVE_MARKS_KEY, JSON.stringify(next));
+            } catch (e) {
+                /* ignore */
+            }
+            return next;
+        });
+    }, [category, subType]);
     
     // 语言选择状态（从localStorage读取，默认中文）
     const [language, setLanguage] = useState(() => {
@@ -222,6 +272,11 @@ function App() {
                 ru: 'Метки [Имп/Экс]: для этой спецификации сохранены импортные / экспортные пошлины',
                 en: 'Tags [I/E]: import/export tariff policy saved on server for this SKU'
             },
+            'skuSavedImportLabel': { zh: '进口政策', ru: 'Имп. политика', en: 'Import' },
+            'skuSavedExportLabel': { zh: '出口政策', ru: 'Эксп. политика', en: 'Export' },
+            'skuSavedYes': { zh: '已保存', ru: 'Сохранено', en: 'Saved' },
+            'skuSavedNo': { zh: '未保存', ru: 'Нет', en: 'Not saved' },
+            'policySavedBadge': { zh: '已保存', ru: 'Сохр.', en: 'Saved' },
             'enterFarmName': { zh: '请输入农场名称', ru: 'Введите название фермы', en: 'Enter Farm Name' },
             'importTaxPolicy': { zh: '进口税收政策', ru: 'Политика импортных налогов', en: 'Import Tax Policy' },
             'exportTaxPolicy': { zh: '出口税收政策', ru: 'Политика экспортных налогов', en: 'Export Tax Policy' },
@@ -635,6 +690,7 @@ function App() {
 
             console.log("保存入口关税政策成功:", body);
             setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
+            markSkuImportSaved();
             refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error) {
@@ -675,6 +731,7 @@ function App() {
             console.log("保存出口关税政策成功:", exportBody);
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
+            markSkuExportSaved();
             refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error) {
@@ -761,6 +818,13 @@ function App() {
         interestRate, sellingPriceCny,
         expectedProfitPercent, expectedProfitPerTonRub, includeShortHaulInDuty, exportPriceRub, exportPriceNoRebateRub
     ]);
+
+    const currentSkuSaveMarks = useMemo(() => {
+        const row = skuPolicyList.find((r) => r.category === category && r.sub_type === subType);
+        const server = markersFromSkuPolicyRow(row);
+        const local = skuSaveMarks[skuKey(category, subType)];
+        return mergeSkuMarkers(server, local);
+    }, [skuPolicyList, category, subType, skuSaveMarks]);
     
     // 当建议出口价变化时，自动填入关税计算出口价输入框（含「不含退税」与主出口价同步规则）
     useEffect(() => {
@@ -898,7 +962,10 @@ function App() {
                     },
                         PRODUCT_CATEGORIES[category].map(item => {
                             const row = skuPolicyList.find((r) => r.category === category && r.sub_type === item);
-                            const { hasImport, hasExport } = markersFromSkuPolicyRow(row);
+                            const { hasImport, hasExport } = mergeSkuMarkers(
+                                markersFromSkuPolicyRow(row),
+                                skuSaveMarks[skuKey(category, item)]
+                            );
                             const baseLabel = t(`subtype_${item}`) || item;
                             const mi = hasImport ? t('skuPolicyMarkImport') : null;
                             const me = hasExport ? t('skuPolicyMarkExport') : null;
@@ -909,7 +976,16 @@ function App() {
                         })
                     )
                 ),
-                h('p', { className: "text-[9px] text-slate-400 mt-2 leading-snug" }, t('skuPolicyLegend'))
+                h('p', { className: "text-[9px] text-slate-400 mt-2 leading-snug" }, t('skuPolicyLegend')),
+                h('div', { className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]" },
+                    h('span', {
+                        className: currentSkuSaveMarks.hasImport ? 'font-bold text-blue-600' : 'text-slate-400'
+                    }, `${t('skuSavedImportLabel')}: ${currentSkuSaveMarks.hasImport ? t('skuSavedYes') : t('skuSavedNo')}`),
+                    h('span', { className: "text-slate-300", 'aria-hidden': true }, '|'),
+                    h('span', {
+                        className: currentSkuSaveMarks.hasExport ? 'font-bold text-emerald-600' : 'text-slate-400'
+                    }, `${t('skuSavedExportLabel')}: ${currentSkuSaveMarks.hasExport ? t('skuSavedYes') : t('skuSavedNo')}`)
+                )
             ),
             // 计算核心参数 - 横向排列
             h('div', { className: "grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6" },
@@ -966,6 +1042,7 @@ function App() {
                     subType,
                     exportSaveStatus,
                     saveExportPolicy,
+                    exportSaved: currentSkuSaveMarks.hasExport,
                     language,
                     t
                 }),
@@ -1006,6 +1083,7 @@ function App() {
                     subType,
                     saveStatus,
                     savePolicy,
+                    importSaved: currentSkuSaveMarks.hasImport,
                     language,
                     t
                 })

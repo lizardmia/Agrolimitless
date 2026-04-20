@@ -18,7 +18,12 @@ import { DEFAULT_VALUES } from '../config/constants.js';
 import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
 import { createTranslator, type Language } from '../utils/i18n.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
-import { markersFromSkuPolicyRow } from '../utils/skuPolicyMarkers.ts';
+import {
+    markersFromSkuPolicyRow,
+    mergeSkuMarkers,
+    skuKey,
+    type SkuLocalSaveMarks,
+} from '../utils/skuPolicyMarkers.ts';
 import { readResponseJson, errorMessageFromBody } from '../utils/httpJson.ts';
 
 export function App() {
@@ -124,6 +129,51 @@ export function App() {
 
     /** 全量 SKU 关税政策（用于规格下拉 [进][出] 标记） */
     const [skuPolicyList, setSkuPolicyList] = useState<Record<string, unknown>[]>([]);
+
+    const SKU_SAVE_MARKS_KEY = 'skuSaveMarks';
+    const [skuSaveMarks, setSkuSaveMarks] = useState<Record<string, SkuLocalSaveMarks>>(() => {
+        if (typeof window === 'undefined') return {};
+        try {
+            const raw = sessionStorage.getItem(SKU_SAVE_MARKS_KEY);
+            if (raw) return JSON.parse(raw) as Record<string, SkuLocalSaveMarks>;
+        } catch {
+            /* ignore */
+        }
+        return {};
+    });
+
+    const markSkuImportSaved = useCallback(() => {
+        setSkuSaveMarks((prev) => {
+            const key = skuKey(category, subType);
+            const next = { ...prev, [key]: { ...prev[key], importSaved: true } };
+            try {
+                sessionStorage.setItem(SKU_SAVE_MARKS_KEY, JSON.stringify(next));
+            } catch {
+                /* ignore */
+            }
+            return next;
+        });
+    }, [category, subType]);
+
+    const markSkuExportSaved = useCallback(() => {
+        setSkuSaveMarks((prev) => {
+            const key = skuKey(category, subType);
+            const next = { ...prev, [key]: { ...prev[key], exportSaved: true } };
+            try {
+                sessionStorage.setItem(SKU_SAVE_MARKS_KEY, JSON.stringify(next));
+            } catch {
+                /* ignore */
+            }
+            return next;
+        });
+    }, [category, subType]);
+
+    const currentSkuSaveMarks = useMemo(() => {
+        const row = skuPolicyList.find((r) => r.category === category && r.sub_type === subType);
+        const server = markersFromSkuPolicyRow(row);
+        const local = skuSaveMarks[skuKey(category, subType)];
+        return mergeSkuMarkers(server, local);
+    }, [skuPolicyList, category, subType, skuSaveMarks]);
 
     const refreshSkuPolicies = useCallback(async () => {
         try {
@@ -289,6 +339,7 @@ export function App() {
 
             console.log("保存入口关税政策成功:", body);
             setSaveStatus(`${t('saveSuccess')} [${subType}] ${t('importTaxPolicy')}: ${t('duty')}${dutyRate}%, ${t('vat')}${vatRate}%`);
+            markSkuImportSaved();
             void refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error: any) {
@@ -544,6 +595,7 @@ export function App() {
             console.log("保存出口关税政策成功:", exportBody);
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
+            markSkuExportSaved();
             void refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error: any) {
@@ -966,7 +1018,10 @@ export function App() {
                                 const row = skuPolicyList.find(
                                     (r) => r.category === category && r.sub_type === item
                                 );
-                                const { hasImport, hasExport } = markersFromSkuPolicyRow(row);
+                                const { hasImport, hasExport } = mergeSkuMarkers(
+                                    markersFromSkuPolicyRow(row),
+                                    skuSaveMarks[skuKey(category, item)]
+                                );
                                 const baseLabel = t(`subtype_${item}`) || item;
                                 const marks = [
                                     hasImport ? t('skuPolicyMarkImport') : null,
@@ -990,6 +1045,17 @@ export function App() {
                         </select>
                     </div>
                     <p className="text-[9px] text-slate-400 mt-2 leading-snug">{t('skuPolicyLegend')}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+                        <span className={currentSkuSaveMarks.hasImport ? 'font-bold text-blue-600' : 'text-slate-400'}>
+                            {t('skuSavedImportLabel')}: {currentSkuSaveMarks.hasImport ? t('skuSavedYes') : t('skuSavedNo')}
+                        </span>
+                        <span className="text-slate-300" aria-hidden>
+                            |
+                        </span>
+                        <span className={currentSkuSaveMarks.hasExport ? 'font-bold text-emerald-600' : 'text-slate-400'}>
+                            {t('skuSavedExportLabel')}: {currentSkuSaveMarks.hasExport ? t('skuSavedYes') : t('skuSavedNo')}
+                        </span>
+                    </div>
                 </div>
                 
                 {/* 计算核心参数 - 横向排列 */}
@@ -1053,6 +1119,7 @@ export function App() {
                             subType,
                             exportSaveStatus,
                             saveExportPolicy,
+                            exportSaved: currentSkuSaveMarks.hasExport,
                             language,
                             t
                         }
@@ -1101,6 +1168,7 @@ export function App() {
                             subType,
                             saveStatus,
                             savePolicy,
+                            importSaved: currentSkuSaveMarks.hasImport,
                             language,
                             t
                         }
