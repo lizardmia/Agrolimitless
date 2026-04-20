@@ -122,9 +122,9 @@ const translations: Translations = {
         en: 'E'
     },
     'skuPolicyLegend': {
-        zh: '标记 [进/出]：已为该规格在服务端保存进口 / 出口关税政策（可并存）',
-        ru: 'Метки [Имп/Экс]: для этой спецификации сохранены импортные / экспортные пошлины',
-        en: 'Tags [I/E]: import/export tariff policy saved on server for this SKU'
+        zh: '标记 [进]「保存进口政策」后、[出]「保存出口政策」后分别显示，互不混用',
+        ru: '[Имп] — после сохранения импорта, [Экс] — после сохранения экспорта, не смешиваются',
+        en: '[I] after Save import policy; [E] after Save export — shown separately'
     },
     'skuSavedImportLabel': {
         zh: '进口政策',

@@ -18,12 +18,7 @@ import { DEFAULT_VALUES } from '../config/constants.js';
 import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
 import { createTranslator, type Language } from '../utils/i18n.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
-import {
-    markersFromSkuPolicyRow,
-    mergeSkuMarkers,
-    skuKey,
-    type SkuLocalSaveMarks,
-} from '../utils/skuPolicyMarkers.ts';
+import { skuKey, type SkuLocalSaveMarks } from '../utils/skuPolicyMarkers.ts';
 import { readResponseJson, errorMessageFromBody } from '../utils/httpJson.ts';
 
 export function App() {
@@ -127,9 +122,6 @@ export function App() {
     const [exportPlanType, setExportPlanType] = useState<'planned' | 'unplanned'>(DEFAULT_VALUES.exportPlanType as 'planned' | 'unplanned');
     const [exportSaveStatus, setExportSaveStatus] = useState<string | null>(null);
 
-    /** 全量 SKU 关税政策（用于规格下拉 [进][出] 标记） */
-    const [skuPolicyList, setSkuPolicyList] = useState<Record<string, unknown>[]>([]);
-
     const SKU_SAVE_MARKS_KEY = 'skuSaveMarks';
     const [skuSaveMarks, setSkuSaveMarks] = useState<Record<string, SkuLocalSaveMarks>>(() => {
         if (typeof window === 'undefined') return {};
@@ -168,27 +160,14 @@ export function App() {
         });
     }, [category, subType]);
 
+    /** 仅根据「保存进口 / 保存出口」按钮写入的会话标记展示，不与服务端整行混用 */
     const currentSkuSaveMarks = useMemo(() => {
-        const row = skuPolicyList.find((r) => r.category === category && r.sub_type === subType);
-        const server = markersFromSkuPolicyRow(row);
-        const local = skuSaveMarks[skuKey(category, subType)];
-        return mergeSkuMarkers(server, local);
-    }, [skuPolicyList, category, subType, skuSaveMarks]);
-
-    const refreshSkuPolicies = useCallback(async () => {
-        try {
-            const res = await fetch('/api/sku-policies');
-            if (!res.ok) return;
-            const data = await readResponseJson<unknown[]>(res);
-            if (Array.isArray(data)) setSkuPolicyList(data as Record<string, unknown>[]);
-        } catch (e) {
-            console.warn('加载 SKU 政策列表失败:', e);
-        }
-    }, []);
-
-    useEffect(() => {
-        void refreshSkuPolicies();
-    }, [refreshSkuPolicies]);
+        const m = skuSaveMarks[skuKey(category, subType)];
+        return {
+            hasImport: !!m?.importSaved,
+            hasExport: !!m?.exportSaved,
+        };
+    }, [category, subType, skuSaveMarks]);
     
     // 从数据库加载SKU的关税政策
     useEffect(() => {
@@ -340,7 +319,6 @@ export function App() {
             console.log("保存入口关税政策成功:", body);
             setSaveStatus(`${t('saveSuccess')} [${subType}] ${t('importTaxPolicy')}: ${t('duty')}${dutyRate}%, ${t('vat')}${vatRate}%`);
             markSkuImportSaved();
-            void refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error: any) {
             console.error("保存入口关税政策失败:", error);
@@ -596,7 +574,6 @@ export function App() {
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
             markSkuExportSaved();
-            void refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error: any) {
             console.error("保存出口关税政策失败:", error);
@@ -1015,13 +992,9 @@ export function App() {
                             onChange={(e) => handleSubTypeChange(e.target.value)}
                         >
                             {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => {
-                                const row = skuPolicyList.find(
-                                    (r) => r.category === category && r.sub_type === item
-                                );
-                                const { hasImport, hasExport } = mergeSkuMarkers(
-                                    markersFromSkuPolicyRow(row),
-                                    skuSaveMarks[skuKey(category, item)]
-                                );
+                                const sm = skuSaveMarks[skuKey(category, item)];
+                                const hasImport = !!sm?.importSaved;
+                                const hasExport = !!sm?.exportSaved;
                                 const baseLabel = t(`subtype_${item}`) || item;
                                 const marks = [
                                     hasImport ? t('skuPolicyMarkImport') : null,

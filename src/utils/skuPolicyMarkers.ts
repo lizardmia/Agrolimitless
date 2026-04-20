@@ -8,7 +8,7 @@ export interface SkuPolicyMarkers {
     hasExport: boolean;
 }
 
-/** 本地会话中记录的「曾点击保存」状态（与服务端合并展示） */
+/** 本地会话：仅由「保存进口」「保存出口」按钮分别写入 */
 export interface SkuLocalSaveMarks {
     importSaved?: boolean;
     exportSaved?: boolean;
@@ -16,15 +16,6 @@ export interface SkuLocalSaveMarks {
 
 export function skuKey(category: string, subType: string): string {
     return `${category}::${subType}`;
-}
-
-/** 服务端推断 + 本地保存成功标记（OR 合并） */
-export function mergeSkuMarkers(server: SkuPolicyMarkers, local?: SkuLocalSaveMarks | null): SkuPolicyMarkers {
-    if (!local) return server;
-    return {
-        hasImport: server.hasImport || !!local.importSaved,
-        hasExport: server.hasExport || !!local.exportSaved,
-    };
 }
 
 function num(v: unknown): number {

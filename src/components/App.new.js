@@ -28,28 +28,6 @@ function getConstants() {
     return window.constants;
 }
 
-/** 与 App.tsx / skuPolicyMarkers 一致：根据服务端行判断是否显示进/口标记 */
-function markersFromSkuPolicyRow(row) {
-    if (!row || typeof row !== 'object') return { hasImport: false, hasExport: false };
-    const id = row.import_duty_rate != null && row.import_duty_rate !== '' ? Number(row.import_duty_rate) : NaN;
-    const importDuty = Number.isFinite(id) ? id : 0;
-    const importName = row.import_policy_name != null && String(row.import_policy_name).trim() !== ''
-        ? String(row.import_policy_name).trim()
-        : '';
-    const hasImport = importDuty > 0 || importName !== '';
-    const mode = row.export_policy_mode != null ? String(row.export_policy_mode) : '';
-    const ed = row.export_duty_rate != null && row.export_duty_rate !== '' ? Number(row.export_duty_rate) : NaN;
-    const exportDuty = Number.isFinite(ed) ? ed : 0;
-    const ev = row.export_vat_rate != null && row.export_vat_rate !== '' ? Number(row.export_vat_rate) : NaN;
-    const exportVat = Number.isFinite(ev) ? ev : NaN;
-    const hasExport =
-        mode === 'with-duty' ||
-        mode === 'planned' ||
-        exportDuty > 0 ||
-        (Number.isFinite(exportVat) && exportVat !== 10);
-    return { hasImport, hasExport };
-}
-
 async function readResponseJson(response) {
     const text = await response.text();
     const trimmed = text.trim();
@@ -71,14 +49,6 @@ const SKU_SAVE_MARKS_KEY = 'skuSaveMarks';
 
 function skuKey(cat, sub) {
     return `${cat}::${sub}`;
-}
-
-function mergeSkuMarkers(server, local) {
-    if (!local) return server;
-    return {
-        hasImport: server.hasImport || !!local.importSaved,
-        hasExport: server.hasExport || !!local.exportSaved,
-    };
 }
 
 // 在函数内部获取，而不是在文件顶部
@@ -181,21 +151,6 @@ function App() {
     const [exportPlanType, setExportPlanType] = useState(DEFAULT_VALUES?.exportPlanType ?? 'planned');
     const [exportSaveStatus, setExportSaveStatus] = useState(null);
 
-    const [skuPolicyList, setSkuPolicyList] = useState([]);
-    const refreshSkuPolicies = useCallback(async () => {
-        try {
-            const res = await fetch('/api/sku-policies');
-            if (!res.ok) return;
-            const data = await readResponseJson(res);
-            if (Array.isArray(data)) setSkuPolicyList(data);
-        } catch (e) {
-            console.warn('加载 SKU 政策列表失败:', e);
-        }
-    }, []);
-    useEffect(() => {
-        refreshSkuPolicies();
-    }, [refreshSkuPolicies]);
-
     const [skuSaveMarks, setSkuSaveMarks] = useState(() => {
         try {
             const raw = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SKU_SAVE_MARKS_KEY);
@@ -268,9 +223,9 @@ function App() {
             'skuPolicyMarkImport': { zh: '进', ru: 'Имп', en: 'I' },
             'skuPolicyMarkExport': { zh: '出', ru: 'Экс', en: 'E' },
             'skuPolicyLegend': {
-                zh: '标记 [进/出]：已为该规格在服务端保存进口 / 出口关税政策（可并存）',
-                ru: 'Метки [Имп/Экс]: для этой спецификации сохранены импортные / экспортные пошлины',
-                en: 'Tags [I/E]: import/export tariff policy saved on server for this SKU'
+                zh: '标记 [进]「保存进口政策」后、[出]「保存出口政策」后分别显示，互不混用',
+                ru: '[Имп] — после сохранения импорта, [Экс] — после экспорта',
+                en: '[I] after Save import; [E] after Save export — separate'
             },
             'skuSavedImportLabel': { zh: '进口政策', ru: 'Имп. политика', en: 'Import' },
             'skuSavedExportLabel': { zh: '出口政策', ru: 'Эксп. политика', en: 'Export' },
@@ -691,7 +646,6 @@ function App() {
             console.log("保存入口关税政策成功:", body);
             setSaveStatus(`已成功保存 [${subType}] 的税收政策: 关税${dutyRate}%, 增值税${vatRate}%`);
             markSkuImportSaved();
-            refreshSkuPolicies();
             setTimeout(() => setSaveStatus(null), 3500);
         } catch (error) {
             console.error("保存入口关税政策失败:", error);
@@ -732,7 +686,6 @@ function App() {
             const modeText = exportPolicyMode === 'no-duty' ? '无关税' : exportPolicyMode === 'with-duty' ? '有关税' : '计划内/计划外';
             setExportSaveStatus(`已成功保存 [${subType}] 的出口政策: ${modeText}`);
             markSkuExportSaved();
-            refreshSkuPolicies();
             setTimeout(() => setExportSaveStatus(null), 3500);
         } catch (error) {
             console.error("保存出口关税政策失败:", error);
@@ -820,11 +773,12 @@ function App() {
     ]);
 
     const currentSkuSaveMarks = useMemo(() => {
-        const row = skuPolicyList.find((r) => r.category === category && r.sub_type === subType);
-        const server = markersFromSkuPolicyRow(row);
-        const local = skuSaveMarks[skuKey(category, subType)];
-        return mergeSkuMarkers(server, local);
-    }, [skuPolicyList, category, subType, skuSaveMarks]);
+        const m = skuSaveMarks[skuKey(category, subType)];
+        return {
+            hasImport: !!m?.importSaved,
+            hasExport: !!m?.exportSaved,
+        };
+    }, [category, subType, skuSaveMarks]);
     
     // 当建议出口价变化时，自动填入关税计算出口价输入框（含「不含退税」与主出口价同步规则）
     useEffect(() => {
@@ -961,11 +915,9 @@ function App() {
                         onChange: (e) => handleSubTypeChange(e.target.value)
                     },
                         PRODUCT_CATEGORIES[category].map(item => {
-                            const row = skuPolicyList.find((r) => r.category === category && r.sub_type === item);
-                            const { hasImport, hasExport } = mergeSkuMarkers(
-                                markersFromSkuPolicyRow(row),
-                                skuSaveMarks[skuKey(category, item)]
-                            );
+                            const sm = skuSaveMarks[skuKey(category, item)];
+                            const hasImport = !!sm?.importSaved;
+                            const hasExport = !!sm?.exportSaved;
                             const baseLabel = t(`subtype_${item}`) || item;
                             const mi = hasImport ? t('skuPolicyMarkImport') : null;
                             const me = hasExport ? t('skuPolicyMarkExport') : null;
