@@ -84,7 +84,12 @@ function OverseaSection({
         const v = item.value === '' || item.value == null ? 0 : Number(item.value) || 0;
         return sum + (item.unit === 'RUB/ton' ? v : v / tpc);
     }, 0);
-    const costBase = farmPriceRubSum + shortHaulFeePerTonDisplay + exportExtrasTotalDisplay;
+    /** true = 「关税计算包含短驳费」；false 时短驳费/短驳价内税不参与成本价与汇总增值税，物损比为 0 */
+    const dutyInclShortHaul = includeShortHaulInDuty !== false;
+    const costBase =
+        farmPriceRubSum +
+        (dutyInclShortHaul ? shortHaulFeePerTonDisplay : 0) +
+        exportExtrasTotalDisplay;
 
     const farmPurchaseVatRatePct = Math.max(0, Number(exportVatRate) || 0);
     let farmVatDisplaySum = 0;
@@ -108,8 +113,9 @@ function OverseaSection({
         const vr = item.vatRate === undefined || item.vatRate === '' ? 0 : Number(item.vatRate) || 0;
         return sum + vatFromInclusiveRub(perTon, vr);
     }, 0);
-    const displayVatSumRub = farmVatDisplaySum + shortHaulVatDisplaySum + extrasVatDisplaySum;
-    // 每吨期望盈利：按「吨」锚定时 = 建议出口价 − 保本价（与 calculatePricing 一致）；否则 = 建议价 − 全栈成本
+    const displayVatSumRub =
+        farmVatDisplaySum + (dutyInclShortHaul ? shortHaulVatDisplaySum : 0) + extrasVatDisplaySum;
+    // 每吨期望盈利：吨锚定 = 建议出口价 − 保本价；否则 = 建议价 − costBase（不含短驳时 costBase 不含短驳费）
     const tonAnchorMode =
         expectedProfitPerTonRub !== undefined &&
         expectedProfitPerTonRub !== null &&
@@ -172,8 +178,13 @@ function OverseaSection({
     
     const shortHaulFeePerTon = shortHaulFeePerTonDisplay;
     
-    // 计算物损比
-    const lossRatio = russianArrivalPriceRub > 0 ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100 : 0;
+    // 物损比：关税计算不含短驳时固定为 0（短驳填入不影响）
+    const lossRatio =
+        !dutyInclShortHaul
+            ? 0
+            : russianArrivalPriceRub > 0
+                ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100
+                : 0;
     
     return h('div', { className: "bg-orange-50/50 p-3 rounded-xl border border-orange-100 space-y-2 shadow-sm" },
         h('div', { className: "flex justify-between items-center gap-2 mb-1" },
@@ -217,7 +228,6 @@ function OverseaSection({
                 const showHaulD = openVatDetail === `${mod.id}-haul`;
                 const vatPerTonHaul = shPerTon > 0 && shVat > 0 ? vatFromInclusiveRub(shPerTon, shVat) : 0;
                 /** 关税计算不包含短驳时：短驳费输入区置灰提示（仍可编辑，便于切回「包含」后沿用） */
-                const dutyInclHaul = includeShortHaulInDuty !== false;
                 return h('div', { key: mod.id, className: "rounded-lg border border-orange-200 bg-white/70 p-2 space-y-1.5 shadow-sm" },
                     modList.length > 1 && h('div', { className: "flex justify-between items-center mb-1" },
                         h('span', { className: "text-[10px] font-bold text-orange-700" },
@@ -301,18 +311,18 @@ function OverseaSection({
                         )
                     ),
                     h('div', {
-                        className: dutyInclHaul
+                        className: dutyInclShortHaul
                             ? 'bg-white p-2 rounded-lg border border-orange-200 shadow-sm'
                             : 'bg-slate-100/95 p-2 rounded-lg border border-slate-300/90 shadow-sm opacity-[0.92]'
                     },
                         h('div', {
-                            className: dutyInclHaul
+                            className: dutyInclShortHaul
                                 ? 'text-[9px] text-orange-600 font-black uppercase tracking-tighter mb-1.5'
                                 : 'text-[9px] text-slate-500 font-black uppercase tracking-tighter mb-1.5'
                         }, t('shortHaulFee')),
                         h('div', { className: "grid grid-cols-2 gap-3" },
                             h('div', null,
-                                h('label', { className: dutyInclHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('distanceKm')),
+                                h('label', { className: dutyInclShortHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('distanceKm')),
                                 h('input', {
                                     type: "number",
                                     value: km === 0 ? '' : km,
@@ -321,13 +331,13 @@ function OverseaSection({
                                         updateModule(mod.id, { shortHaulDistanceKm: val === '' ? 0 : Number(val) });
                                     },
                                     placeholder: "0",
-                                    className: dutyInclHaul
+                                    className: dutyInclShortHaul
                                         ? "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
                                         : "w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-600 shadow-sm focus:ring-2 focus:ring-slate-300 focus:border-slate-400 outline-none"
                                 })
                             ),
                             h('div', null,
-                                h('label', { className: dutyInclHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('pricePerKmPerContainer')),
+                                h('label', { className: dutyInclShortHaul ? "text-[10px] text-slate-500 font-bold block mb-1" : "text-[10px] text-slate-500/90 font-bold block mb-1" }, t('pricePerKmPerContainer')),
                                 h('input', {
                                     type: "number",
                                     value: pp === 0 ? '' : pp,
@@ -336,37 +346,37 @@ function OverseaSection({
                                         updateModule(mod.id, { shortHaulPricePerKmPerContainer: val === '' ? 0 : Number(val) });
                                     },
                                     placeholder: "0",
-                                    className: dutyInclHaul
+                                    className: dutyInclShortHaul
                                         ? "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-200 focus:border-orange-300 outline-none"
                                         : "w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold text-slate-600 shadow-sm focus:ring-2 focus:ring-slate-300 focus:border-slate-400 outline-none"
                                 })
                             )
                         ),
                         h('div', {
-                            className: dutyInclHaul
+                            className: dutyInclShortHaul
                                 ? "mt-2 p-2 bg-orange-50 rounded-lg border border-orange-100"
                                 : "mt-2 p-2 bg-slate-200/60 rounded-lg border border-slate-300/80"
                         },
                             h('div', { className: "flex justify-between items-center" },
                                 h('span', {
-                                    className: dutyInclHaul ? "text-[9px] text-orange-600 font-bold" : "text-[9px] text-slate-500 font-bold"
+                                    className: dutyInclShortHaul ? "text-[9px] text-orange-600 font-bold" : "text-[9px] text-slate-500 font-bold"
                                 }, `${t('shortHaulFeeResult')}:`),
                                 h('span', {
-                                    className: dutyInclHaul ? "text-sm font-black text-orange-800" : "text-sm font-black text-slate-700"
+                                    className: dutyInclShortHaul ? "text-sm font-black text-orange-800" : "text-sm font-black text-slate-700"
                                 },
                                     formatCurrencyLocal(feePerContainer, { maximumFractionDigits: 2 }),
                                     ` ${t('rubPerContainer')}`
                                 )
                             ),
                             h('p', {
-                                className: dutyInclHaul ? "text-[8px] text-slate-400 mt-1" : "text-[8px] text-slate-500 mt-1"
+                                className: dutyInclShortHaul ? "text-[8px] text-slate-400 mt-1" : "text-[8px] text-slate-500 mt-1"
                             },
                                 `${t('calculationFormula')}: ${t('distanceKm')} × 2 × ${t('pricePerKmPerContainer')}`
                             )
                         ),
                         h('div', { className: "mt-2 space-y-1.5" },
                             h('label', {
-                                className: dutyInclHaul ? "text-[9px] text-slate-600 font-bold block" : "text-[9px] text-slate-500 font-bold block"
+                                className: dutyInclShortHaul ? "text-[9px] text-slate-600 font-bold block" : "text-[9px] text-slate-500 font-bold block"
                             }, `${t('shortHaulVatRateLabel')} (%)`),
                             h('div', { className: "flex items-center gap-2" },
                                 h('input', {
@@ -382,7 +392,7 @@ function OverseaSection({
                                             if (!isNaN(n) && n >= 0) updateModule(mod.id, { shortHaulVatRate: n });
                                         }
                                     },
-                                    className: dutyInclHaul
+                                    className: dutyInclShortHaul
                                         ? "w-24 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:ring-2 focus:ring-orange-200 outline-none"
                                         : "w-24 p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-600 focus:ring-2 focus:ring-slate-300 outline-none",
                                     placeholder: "0"
@@ -390,16 +400,16 @@ function OverseaSection({
                                 h('span', { className: "text-[10px] text-slate-500" }, '%')
                             ),
                             shPerTon > 0 && shVat > 0 && h('div', {
-                                className: dutyInclHaul
+                                className: dutyInclShortHaul
                                     ? "text-[10px] p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 space-y-1"
                                     : "text-[10px] p-2 rounded-lg bg-slate-200/50 border border-slate-300/70 space-y-1"
                             },
                                 h('div', { className: "flex justify-between items-center gap-2" },
                                     h('span', {
-                                        className: dutyInclHaul ? "text-emerald-800 font-bold" : "text-slate-600 font-bold"
+                                        className: dutyInclShortHaul ? "text-emerald-800 font-bold" : "text-slate-600 font-bold"
                                     }, t('vatPerTonShortHaul')),
                                     h('span', {
-                                        className: dutyInclHaul ? "text-emerald-700 font-black" : "text-slate-700 font-black"
+                                        className: dutyInclShortHaul ? "text-emerald-700 font-black" : "text-slate-700 font-black"
                                     },
                                         formatCurrencyLocal(vatPerTonHaul, { maximumFractionDigits: 2 }),
                                         ` ${t('rubPerTon')}`
@@ -408,14 +418,14 @@ function OverseaSection({
                                 h('button', {
                                     type: 'button',
                                     onClick: () => setOpenVatDetail(showHaulD ? null : `${mod.id}-haul`),
-                                    className: dutyInclHaul ? "text-[9px] text-emerald-600 underline font-bold" : "text-[9px] text-slate-500 underline font-bold"
+                                    className: dutyInclShortHaul ? "text-[9px] text-emerald-600 underline font-bold" : "text-[9px] text-slate-500 underline font-bold"
                                 }, showHaulD ? t('vatCalcToggleHide') : t('vatCalcToggleShow')),
                                 showHaulD && h('div', {
-                                    className: dutyInclHaul
+                                    className: dutyInclShortHaul
                                         ? "pt-1 border-t border-emerald-200 text-[8px] text-emerald-900 space-y-1 leading-relaxed"
                                         : "pt-1 border-t border-slate-300 text-[8px] text-slate-700 space-y-1 leading-relaxed"
                                 },
-                                    h('p', { className: dutyInclHaul ? "font-bold text-emerald-800" : "font-bold text-slate-600" }, t('vatCalcDetailTitle')),
+                                    h('p', { className: dutyInclShortHaul ? "font-bold text-emerald-800" : "font-bold text-slate-600" }, t('vatCalcDetailTitle')),
                                     h('p', null, `① ${t('vatCalcStep1ShortHaul')}`),
                                     h('p', null,
                                         '= ',

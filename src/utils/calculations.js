@@ -96,7 +96,9 @@ function calculatePricing(params) {
         ? fullOverseaStackRub
         : farmPriceRub + exportExtrasTotalRub;
 
-    const suggestedExportPriceBase = fullOverseaStackRub;
+    const suggestedExportPriceBase = includeShortHaulInDuty
+        ? fullOverseaStackRub
+        : farmPriceRub + exportExtrasTotalRub;
     const m = expectedProfitPercent / 100;
     const r = exportDutyRate / 100;
 
@@ -109,9 +111,7 @@ function calculatePricing(params) {
 
     let breakEvenExportPriceRub = 0;
     if (exportDutyRate > 0 && r < 1) {
-        const numerator = includeShortHaulInDuty
-            ? baseRussianArrivalPriceRub - rebateRub
-            : baseRussianArrivalPriceRub - rebateRub + r * shortHaulFeePerTon;
+        const numerator = baseRussianArrivalPriceRub - rebateRub;
         if (numerator > 0) {
             breakEvenExportPriceRub = Math.round(numerator / (1 - r));
         }
@@ -121,9 +121,7 @@ function calculatePricing(params) {
 
     let breakEvenExportPriceNoRebateRub = 0;
     if (exportDutyRate > 0 && r < 1) {
-        const numeratorNoRebate = includeShortHaulInDuty
-            ? baseRussianArrivalPriceRub
-            : baseRussianArrivalPriceRub + r * shortHaulFeePerTon;
+        const numeratorNoRebate = baseRussianArrivalPriceRub;
         if (numeratorNoRebate > 0) {
             breakEvenExportPriceNoRebateRub = Math.round(numeratorNoRebate / (1 - r));
         }
@@ -139,12 +137,7 @@ function calculatePricing(params) {
     const tonProfit = tonProfitDefined ? Number(expectedProfitPerTonRub) : NaN;
 
     if (expectedProfitPercent > 0 && r < 1) {
-        if (includeShortHaulInDuty) {
-            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
-        } else {
-            suggestedExportPriceRub =
-                (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
-        }
+        suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
         if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
     } else if (tonProfitDefined && expectedProfitPercent === 0) {
         suggestedExportPriceRub = Math.max(0, breakEvenExportPriceRub + Math.max(0, tonProfit));

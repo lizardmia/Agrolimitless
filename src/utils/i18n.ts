@@ -1052,9 +1052,9 @@ const translations: Translations = {
         en: 'Break-even export price (P)'
     },
     'breakEvenExportDesc': {
-        zh: '总收入 = 出口价 P + 退税 R；总支出 = 前期成本 C（海外到站）+ 出口关税。含短驳入关税时关税 = r×P；不含时为 r×(P−短驳每吨)。平衡：P + R = C + 关税，解出 P（取整）。',
-        ru: 'Выручка: P + R; расходы: C + пошлина. При «включить перевозку в пошлину»: пошлина = r×P; иначе r×(P−перевозка/т). Равенство → P (округление).',
-        en: 'Revenue = P + rebate R; cost = C + export duty. If short haul in duty base: duty = r×P; else r×(P−short haul/t). Solve for P (rounded).'
+        zh: '总收入 = P + 退税 R；总支出 = 前期成本 C + 出口关税（r×P）。C 为海外到站：选「包含短驳」时含短驳费；选「不包含」时不含短驳费，且保本 P 与短驳公里、每公里价、短驳增值税率无关。由 P + R = C + r×P 解出 P（取整）。',
+        ru: 'Выручка: P + R; расходы: C + пошлина r×P. C — прибытие: с перевозкой или без; при исключении перевозки из базы пошлины вводы по перевозке не меняют P. Равенство → P (округление).',
+        en: 'Revenue: P + rebate R; cost: C + duty r×P. C is arrival (includes short haul only if selected). If short haul is excluded from duty base, break-even P ignores short-haul inputs. Solve P + R = C + r×P (rounded).'
     },
     'breakEvenCostShort': {
         zh: '（前期成本）',
@@ -1077,7 +1077,7 @@ const translations: Translations = {
         en: 'Rounded to integer RUB/t.'
     },
     'breakEvenNotApplicable': {
-        zh: '当前参数下无法得到正保本出口价（例如 C−R−r×SH ≤ 0 或关税率无效）。',
+        zh: '当前参数下无法得到正保本出口价（例如 C−R ≤ 0 或关税率无效）。',
         ru: 'При текущих данных положительная безубыточная цена не вычисляется.',
         en: 'No positive break-even P under current inputs.'
     },
@@ -1097,7 +1097,7 @@ const translations: Translations = {
         en: 'Break-even P without rebate (rounded)'
     },
     'breakEvenNotApplicableNoRebate': {
-        zh: '当前参数下无法得到正的不含退税保本出口价（例如 C−r×SH ≤ 0 或关税率无效）。',
+        zh: '当前参数下无法得到正的不含退税保本出口价（例如 C ≤ 0 或关税率无效）。',
         ru: 'Положительная цена без возврата НДС не вычисляется.',
         en: 'No positive break-even P (no rebate) under current inputs.'
     },

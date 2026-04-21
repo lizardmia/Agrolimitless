@@ -106,7 +106,10 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
         ? fullOverseaStackRub
         : farmPriceRub + exportExtrasTotalRub;
 
-    const suggestedExportPriceBase = fullOverseaStackRub;
+    // 期望盈利百分点对应的成本基数：不含短驳时与到站预估一致（短驳费及短驳价内税不参与）
+    const suggestedExportPriceBase = includeShortHaulInDuty
+        ? fullOverseaStackRub
+        : farmPriceRub + exportExtrasTotalRub;
     const m = expectedProfitPercent / 100;
     const r = exportDutyRate / 100;
 
@@ -119,11 +122,10 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
     const rebateRub = exportVatRebateRub;
 
     // 保本出口价（需先于「按每吨盈利」建议出口价）
+    // 「关税计算不包含短驳」时：短驳公里/单价/短驳增值税率均不参与保本 P（与到站 C 一致，仅 P+R=C+rP 或 P=C+rP）
     let breakEvenExportPriceRub = 0;
     if (exportDutyRate > 0 && r < 1) {
-        const numerator = includeShortHaulInDuty
-            ? baseRussianArrivalPriceRub - rebateRub
-            : baseRussianArrivalPriceRub - rebateRub + r * shortHaulFeePerTon;
+        const numerator = baseRussianArrivalPriceRub - rebateRub;
         if (numerator > 0) {
             breakEvenExportPriceRub = Math.round(numerator / (1 - r));
         }
@@ -133,9 +135,7 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
 
     let breakEvenExportPriceNoRebateRub = 0;
     if (exportDutyRate > 0 && r < 1) {
-        const numeratorNoRebate = includeShortHaulInDuty
-            ? baseRussianArrivalPriceRub
-            : baseRussianArrivalPriceRub + r * shortHaulFeePerTon;
+        const numeratorNoRebate = baseRussianArrivalPriceRub;
         if (numeratorNoRebate > 0) {
             breakEvenExportPriceNoRebateRub = Math.round(numeratorNoRebate / (1 - r));
         }
@@ -153,12 +153,8 @@ export function calculatePricing(params: PricingParams = {}): PricingResults {
     const tonProfit = tonProfitDefined ? Number(tonProfitRaw) : NaN;
 
     if (expectedProfitPercent > 0 && r < 1) {
-        if (includeShortHaulInDuty) {
-            suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
-        } else {
-            suggestedExportPriceRub =
-                (suggestedExportPriceBase * (1 + m) - shortHaulFeePerTon * r) / (1 - r);
-        }
+        // 不含短驳时 suggestedExportPriceBase 已不含短驳，与保本同口径，不再用短驳费修正分子
+        suggestedExportPriceRub = suggestedExportPriceBase * (1 + m) / (1 - r);
         if (suggestedExportPriceRub < 0) suggestedExportPriceRub = 0;
     } else if (tonProfitDefined && expectedProfitPercent === 0) {
         suggestedExportPriceRub = Math.max(0, breakEvenExportPriceRub + Math.max(0, tonProfit));
