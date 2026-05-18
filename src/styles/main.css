@@ -37,3 +37,11 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(249, 115, 22, 0.3) transparent;
 }
+
+body.image-export-mode .no-print {
+    display: none !important;
+}
+
+body.image-export-mode {
+    background: #ffffff !important;
+}

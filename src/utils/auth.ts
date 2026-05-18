@@ -5,13 +5,27 @@
  * 2. localStorage 模式（开发/回退）：使用浏览器本地存储
  */
 
+export type UserRole = 'admin' | 'ddp' | 'user';
+
 export interface User {
     id: string;
     username: string;
     password?: string; // 仅用于 localStorage 模式
-    role: 'admin' | 'user';
+    role: UserRole;
+    canFca?: boolean;
+    canDap?: boolean;
+    canDomestic?: boolean;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface UserAccessUpdates {
+    username?: string;
+    password?: string;
+    role?: UserRole;
+    canFca?: boolean;
+    canDap?: boolean;
+    canDomestic?: boolean;
 }
 
 export interface AuthState {
@@ -24,6 +38,30 @@ const API_BASE = '/api';
 
 // 检查是否使用 API 模式（通过环境变量或配置）
 const USE_API = import.meta.env.VITE_USE_API === 'true' || import.meta.env.PROD;
+
+function normalizeRole(role: unknown): UserRole {
+    return role === 'admin' || role === 'ddp' || role === 'user' ? role : 'user';
+}
+
+function normalizeUser(raw: any): User {
+    const role = normalizeRole(raw?.role);
+    const isFullAccessRole = role === 'admin' || role === 'ddp';
+    return {
+        id: String(raw?.id ?? ''),
+        username: String(raw?.username ?? ''),
+        password: raw?.password,
+        role,
+        canFca: isFullAccessRole || !!(raw?.canFca ?? raw?.can_fca),
+        canDap: isFullAccessRole || !!(raw?.canDap ?? raw?.can_dap),
+        canDomestic: isFullAccessRole || !!(raw?.canDomestic ?? raw?.can_domestic),
+        createdAt: String(raw?.createdAt ?? raw?.created_at ?? new Date().toISOString()),
+        updatedAt: String(raw?.updatedAt ?? raw?.updated_at ?? new Date().toISOString())
+    };
+}
+
+function normalizeUsers(raw: any): User[] {
+    return Array.isArray(raw) ? raw.map(normalizeUser) : [];
+}
 
 // ==================== API 模式 ====================
 
@@ -68,8 +106,9 @@ async function loginAPI(username: string, password: string): Promise<{ success: 
 
         if (data.success && data.user) {
             // 保存到 localStorage（用于前端状态管理）
-            localStorage.setItem('currentUser', JSON.stringify(data.user));
-            return { success: true, user: data.user };
+            const user = normalizeUser(data.user);
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            return { success: true, user };
         }
 
         return { success: false, error: data.error || '登录失败' };
@@ -82,22 +121,22 @@ async function loginAPI(username: string, password: string): Promise<{ success: 
 // 获取所有用户（API 模式）
 async function getAllUsersAPI(): Promise<User[]> {
     try {
-        return await apiRequest('/users');
+        return normalizeUsers(await apiRequest('/users'));
     } catch (error: any) {
         throw new Error(error.message || '获取用户列表失败');
     }
 }
 
 // 创建用户（API 模式）
-async function createUserAPI(username: string, password: string, role: 'admin' | 'user' = 'user'): Promise<{ success: boolean; user?: User; error?: string }> {
+async function createUserAPI(username: string, password: string, role: UserRole = 'user', access: Pick<UserAccessUpdates, 'canFca' | 'canDap' | 'canDomestic'> = {}): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
         const data = await apiRequest('/users/create', {
             method: 'POST',
-            body: JSON.stringify({ username, password, role }),
+            body: JSON.stringify({ username, password, role, ...access }),
         });
 
         if (data.success && data.user) {
-            return { success: true, user: data.user };
+            return { success: true, user: normalizeUser(data.user) };
         }
 
         return { success: false, error: data.error || '创建用户失败' };
@@ -107,7 +146,7 @@ async function createUserAPI(username: string, password: string, role: 'admin' |
 }
 
 // 更新用户（API 模式）
-async function updateUserAPI(userId: string, updates: { username?: string; password?: string; role?: 'admin' | 'user' }): Promise<{ success: boolean; user?: User; error?: string }> {
+async function updateUserAPI(userId: string, updates: UserAccessUpdates): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
         const data = await apiRequest(`/users/${userId}`, {
             method: 'PUT',
@@ -115,12 +154,13 @@ async function updateUserAPI(userId: string, updates: { username?: string; passw
         });
 
         if (data.success && data.user) {
+            const user = normalizeUser(data.user);
             // 如果更新的是当前登录用户，更新 localStorage
             const currentUser = getCurrentUser();
             if (currentUser && currentUser.id === userId) {
-                localStorage.setItem('currentUser', JSON.stringify(data.user));
+                localStorage.setItem('currentUser', JSON.stringify(user));
             }
-            return { success: true, user: data.user };
+            return { success: true, user };
         }
 
         return { success: false, error: data.error || '更新用户失败' };
@@ -154,6 +194,9 @@ const DEFAULT_ADMIN: User = {
     username: 'admin',
     password: 'admin123',
     role: 'admin',
+    canFca: true,
+    canDap: true,
+    canDomestic: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
 };
@@ -164,9 +207,9 @@ function getUsersLocal(): User[] {
     if (!stored) {
         const users = [DEFAULT_ADMIN];
         localStorage.setItem('users', JSON.stringify(users));
-        return users;
+        return users.map(normalizeUser);
     }
-    return JSON.parse(stored);
+    return normalizeUsers(JSON.parse(stored));
 }
 
 // 保存用户列表到 localStorage
@@ -194,7 +237,7 @@ function getAllUsersLocal(): User[] {
 }
 
 // 创建用户（localStorage 模式）
-function createUserLocal(username: string, password: string, role: 'admin' | 'user' = 'user'): { success: boolean; user?: User; error?: string } {
+function createUserLocal(username: string, password: string, role: UserRole = 'user', access: Pick<UserAccessUpdates, 'canFca' | 'canDap' | 'canDomestic'> = {}): { success: boolean; user?: User; error?: string } {
     const users = getUsersLocal();
     
     if (users.some(u => u.username === username)) {
@@ -206,6 +249,9 @@ function createUserLocal(username: string, password: string, role: 'admin' | 'us
         username,
         password,
         role,
+        canFca: role === 'admin' || role === 'ddp' || !!access.canFca,
+        canDap: role === 'admin' || role === 'ddp' || !!access.canDap,
+        canDomestic: role === 'admin' || role === 'ddp' || !!access.canDomestic,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
@@ -218,7 +264,7 @@ function createUserLocal(username: string, password: string, role: 'admin' | 'us
 }
 
 // 更新用户（localStorage 模式）
-function updateUserLocal(userId: string, updates: { username?: string; password?: string; role?: 'admin' | 'user' }): { success: boolean; user?: User; error?: string } {
+function updateUserLocal(userId: string, updates: UserAccessUpdates): { success: boolean; user?: User; error?: string } {
     const users = getUsersLocal();
     const userIndex = users.findIndex(u => u.id === userId);
     
@@ -230,11 +276,15 @@ function updateUserLocal(userId: string, updates: { username?: string; password?
         return { success: false, error: '用户名已存在' };
     }
     
-    const updatedUser: User = {
+    const nextRole = updates.role ?? users[userIndex].role;
+    const updatedUser: User = normalizeUser({
         ...users[userIndex],
         ...updates,
+        canFca: nextRole === 'admin' || nextRole === 'ddp' || !!updates.canFca,
+        canDap: nextRole === 'admin' || nextRole === 'ddp' || !!updates.canDap,
+        canDomestic: nextRole === 'admin' || nextRole === 'ddp' || !!updates.canDomestic,
         updatedAt: new Date().toISOString()
-    };
+    });
     
     users[userIndex] = updatedUser;
     saveUsersLocal(users);
@@ -272,13 +322,13 @@ function deleteUserLocal(userId: string): { success: boolean; error?: string } {
 // 获取当前登录用户
 export function getCurrentUser(): User | null {
     const stored = localStorage.getItem('currentUser');
-    return stored ? JSON.parse(stored) : null;
+    return stored ? normalizeUser(JSON.parse(stored)) : null;
 }
 
 // 设置当前登录用户
 export function setCurrentUser(user: User | null): void {
     if (user) {
-        localStorage.setItem('currentUser', JSON.stringify(user));
+        localStorage.setItem('currentUser', JSON.stringify(normalizeUser(user)));
     } else {
         localStorage.removeItem('currentUser');
     }
@@ -308,6 +358,27 @@ export function isAdmin(): boolean {
     return user?.role === 'admin';
 }
 
+export function isDDP(): boolean {
+    const user = getCurrentUser();
+    return user?.role === 'ddp';
+}
+
+export function canViewFca(user: User | null = getCurrentUser()): boolean {
+    return !!user && (user.role === 'admin' || user.role === 'ddp' || !!user.canFca);
+}
+
+export function canViewDap(user: User | null = getCurrentUser()): boolean {
+    return !!user && (user.role === 'admin' || user.role === 'ddp' || !!user.canDap || !!user.canDomestic);
+}
+
+export function canViewDomestic(user: User | null = getCurrentUser()): boolean {
+    return !!user && (user.role === 'admin' || user.role === 'ddp' || !!user.canDomestic);
+}
+
+export function canManageUsers(user: User | null = getCurrentUser()): boolean {
+    return !!user && user.role === 'admin';
+}
+
 // 获取所有用户（仅管理员）
 export function getAllUsers(): Promise<User[]> | User[] {
     if (!isAdmin()) {
@@ -321,19 +392,19 @@ export function getAllUsers(): Promise<User[]> | User[] {
 }
 
 // 创建用户（仅管理员）
-export function createUser(username: string, password: string, role: 'admin' | 'user' = 'user'): Promise<{ success: boolean; user?: User; error?: string }> | { success: boolean; user?: User; error?: string } {
+export function createUser(username: string, password: string, role: UserRole = 'user', access: Pick<UserAccessUpdates, 'canFca' | 'canDap' | 'canDomestic'> = {}): Promise<{ success: boolean; user?: User; error?: string }> | { success: boolean; user?: User; error?: string } {
     if (!isAdmin()) {
         return Promise.resolve({ success: false, error: '只有超级管理员可以创建用户' });
     }
     
     if (USE_API) {
-        return createUserAPI(username, password, role);
+        return createUserAPI(username, password, role, access);
     }
-    return createUserLocal(username, password, role);
+    return createUserLocal(username, password, role, access);
 }
 
 // 更新用户（仅管理员）
-export function updateUser(userId: string, updates: { username?: string; password?: string; role?: 'admin' | 'user' }): Promise<{ success: boolean; user?: User; error?: string }> | { success: boolean; user?: User; error?: string } {
+export function updateUser(userId: string, updates: UserAccessUpdates): Promise<{ success: boolean; user?: User; error?: string }> | { success: boolean; user?: User; error?: string } {
     if (!isAdmin()) {
         return Promise.resolve({ success: false, error: '只有超级管理员可以修改用户' });
     }

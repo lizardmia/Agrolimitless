@@ -109,6 +109,7 @@ export interface CostBreakdownProps {
     tonsPerContainer: number;
     dutyRate: number;
     vatRate: number;
+    embedded?: boolean;
     language?: 'zh' | 'ru' | 'en';
     t?: (key: string) => string;
 }

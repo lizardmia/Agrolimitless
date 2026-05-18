@@ -6,10 +6,23 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  role VARCHAR(50) DEFAULT 'user' CHECK (role IN ('admin', 'ddp', 'user')),
+  can_fca BOOLEAN DEFAULT false,
+  can_dap BOOLEAN DEFAULT false,
+  can_domestic BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- 兼容已存在的 users 表：补充新角色和能力字段
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_fca BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_dap BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_domestic BOOLEAN DEFAULT false;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'ddp', 'user'));
+UPDATE users
+SET can_fca = true, can_dap = true, can_domestic = true
+WHERE role = 'admin';
 
 -- 2. 创建索引（提高查询性能）
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -55,6 +68,10 @@ VALUES (
     'admin'
 )
 ON CONFLICT (username) DO NOTHING;  -- 如果已存在则不插入
+
+UPDATE users
+SET can_fca = true, can_dap = true, can_domestic = true
+WHERE username = 'admin';
 
 -- ==================== SKU 关税政策表 ====================
 

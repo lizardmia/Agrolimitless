@@ -262,6 +262,7 @@ export function reverseFarmPriceFromArrivalPrice(params: {
     shortHaulFeePerTon?: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
+    includeShortHaulInDuty?: boolean;
 }): number {
     const {
         targetArrivalPriceCny,
@@ -270,7 +271,8 @@ export function reverseFarmPriceFromArrivalPrice(params: {
         shortHaulPricePerKmPerContainer = 0,
         shortHaulFeePerTon: shortHaulFeePerTonParam,
         exportExtras,
-        tonsPerContainer
+        tonsPerContainer,
+        includeShortHaulInDuty = true
     } = params;
     
     const tpc = tonsPerContainer || 1;
@@ -289,17 +291,15 @@ export function reverseFarmPriceFromArrivalPrice(params: {
     // 目标海外到站价格（RUB/t）
     const targetArrivalPriceRub = targetArrivalPriceCny * exchangeRate;
     
-    // 倒推农场采购价
-    // russianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub
-    // farmPriceRub = russianArrivalPriceRub - shortHaulFeePerTon - exportExtrasTotalRub
-    const farmPriceRub = targetArrivalPriceRub - shortHaulFeePerTon - exportExtrasTotalRub;
+    // 倒推农场采购价，口径与 calculatePricing 的 baseRussianArrivalPriceRub 保持一致
+    const shortHaulRubInArrival = includeShortHaulInDuty ? shortHaulFeePerTon : 0;
+    const farmPriceRub = targetArrivalPriceRub - shortHaulRubInArrival - exportExtrasTotalRub;
     
     return Math.max(0, farmPriceRub); // 确保不为负数
 }
 
 /**
- * 根据目标基础成本价倒推农场采购价
- * 注意：这是一个简化版本，假设进口结算货值与海外到站价格相关
+ * 根据目标基础成本价倒推农场采购价和进口结算货值
  */
 export function reverseFarmPriceFromBasePrice(params: {
     targetBaseLandingPriceCny: number;  // 目标基础成本价
@@ -317,7 +317,8 @@ export function reverseFarmPriceFromBasePrice(params: {
     domesticShortHaulCny: number;
     domesticExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
-}): number | null {
+    includeShortHaulInDuty?: boolean;
+}): { farmPriceRub: number; importPriceRubPerTon: number } | null {
     const {
         targetBaseLandingPriceCny,
         exchangeRate,
@@ -333,7 +334,8 @@ export function reverseFarmPriceFromBasePrice(params: {
         insuranceRate = 0,
         domesticShortHaulCny,
         domesticExtras,
-        tonsPerContainer
+        tonsPerContainer,
+        includeShortHaulInDuty = true
     } = params;
     
     const tpc = tonsPerContainer || 1;
@@ -357,10 +359,9 @@ export function reverseFarmPriceFromBasePrice(params: {
         return null; // 无解
     }
     
-    // 将进口结算货值转换为RUB
-    const importPriceRub = importValueCny * exchangeRate;
-    
-    // 假设进口结算货值 ≈ 海外到站价格（简化假设）
+    // 将进口结算货值转换为 RUB/t
+    const importPriceRubPerTon = importValueCny * exchangeRate;
+
     const shortHaulFeePerTon =
         shortHaulFeePerTonParam !== undefined && shortHaulFeePerTonParam !== null && Number.isFinite(Number(shortHaulFeePerTonParam))
             ? Number(shortHaulFeePerTonParam)
@@ -372,13 +373,14 @@ export function reverseFarmPriceFromBasePrice(params: {
         return sum + (item.unit === 'RUB/ton' ? value : value / tpc);
     }, 0);
     
-    // 倒推农场采购价
-    // 假设：importPriceRub ≈ russianArrivalPriceRub（简化）
-    // russianArrivalPriceRub = farmPriceRub + shortHaulFeePerTon + exportExtrasTotalRub
-    // farmPriceRub = importPriceRub - shortHaulFeePerTon - exportExtrasTotalRub
-    const farmPriceRub = importPriceRub - shortHaulFeePerTon - exportExtrasTotalRub;
+    // 倒推农场采购价，口径与 calculatePricing 的 baseRussianArrivalPriceRub 保持一致
+    const shortHaulRubInArrival = includeShortHaulInDuty ? shortHaulFeePerTon : 0;
+    const farmPriceRub = importPriceRubPerTon - shortHaulRubInArrival - exportExtrasTotalRub;
     
-    return Math.max(0, farmPriceRub);
+    return {
+        farmPriceRub: Math.max(0, farmPriceRub),
+        importPriceRubPerTon
+    };
 }
 
 /**

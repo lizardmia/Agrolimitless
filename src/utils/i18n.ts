@@ -35,6 +35,16 @@ const translations: Translations = {
         ru: 'Текущий пользователь',
         en: 'Current User'
     },
+    'downloadScreenshot': {
+        zh: '下载截图',
+        ru: 'Скачать снимок',
+        en: 'Download Image'
+    },
+    'generatingScreenshot': {
+        zh: '生成中',
+        ru: 'Создание',
+        en: 'Generating'
+    },
     'admin': {
         zh: '管理员',
         ru: 'Администратор',
@@ -525,6 +535,16 @@ const translations: Translations = {
         ru: 'Пошлина',
         en: 'Duty'
     },
+    'rebateDutyTax': {
+        zh: '退税关税',
+        ru: 'Пошлина с возвратом НДС',
+        en: 'Rebate Duty'
+    },
+    'actualDutyTax': {
+        zh: '实际关税',
+        ru: 'Фактическая пошлина',
+        en: 'Actual Duty'
+    },
     'dutyFormula': {
         zh: '计算公式: 出口价格 × 关税税率',
         ru: 'Формула: Экспортная цена × Ставка экспортной пошлины',
@@ -534,6 +554,11 @@ const translations: Translations = {
         zh: '增值税总和 - 关税',
         ru: 'Сумма НДС − пошлина',
         en: 'Total VAT − Duty'
+    },
+    'vatMinusRebateDuty': {
+        zh: '增值税总和 - 退税关税',
+        ru: 'Сумма НДС − пошлина с возвратом НДС',
+        en: 'Total VAT − Rebate Duty'
     },
     'vatMinusDutyFormula': {
         zh: '计算公式: 增值税总和 − 关税',
@@ -546,6 +571,16 @@ const translations: Translations = {
         zh: '国内段计算参数',
         ru: 'Параметры расчета внутреннего сегмента',
         en: 'Domestic Segment Parameters'
+    },
+    'railFreightSection': {
+        zh: '中欧班列运费',
+        ru: 'Ж/д фрахт Китай-Европа',
+        en: 'China-Europe Rail Freight'
+    },
+    'railFreightHint': {
+        zh: '国外段参与关税完税价格；国内段不参与关税计算。',
+        ru: 'Зарубежный участок входит в таможенную стоимость; внутренний участок не входит.',
+        en: 'Overseas segment enters customs value; domestic segment is excluded from duty calculation.'
     },
     'importSettlementValue': {
         zh: '进口结算货值 (RUB)',
@@ -1142,19 +1177,54 @@ const translations: Translations = {
         en: 'Exclude'
     },
     'exportPriceForDuty': {
-        zh: '关税计算-出口价格 (RUB/t)',
-        ru: 'Цена экспорта для расчета пошлины (RUB/т)',
-        en: 'Export Price for Duty Calc (RUB/t)'
+        zh: '含退税出口价格 (RUB/t)',
+        ru: 'Экспортная цена с возвратом НДС (RUB/т)',
+        en: 'Export price with rebate (RUB/t)'
+    },
+    'breakEvenDutyPriceForRebate': {
+        zh: '保本出口价（退税口径）',
+        ru: 'Безубыточная экспортная цена (с возвратом НДС)',
+        en: 'Break-even export price (rebate basis)'
+    },
+    'breakEvenDutyPriceNoRebate': {
+        zh: '保本出口价（不含退税）',
+        ru: 'Безубыточная экспортная цена (без возврата НДС)',
+        en: 'Break-even export price (no rebate)'
+    },
+    'breakEvenFlag': {
+        zh: '保本',
+        ru: 'Безуб.',
+        en: 'Break-even'
+    },
+    'breakEvenDutyPriceHint': {
+        zh: '根据当前参数自动计算，仅展示，不可修改',
+        ru: 'Автоматический расчет по текущим параметрам, только просмотр',
+        en: 'Auto-calculated from current inputs, display only'
+    },
+    'editableDutyPrices': {
+        zh: '可修改关税价格',
+        ru: 'Редактируемые цены для пошлины',
+        en: 'Editable duty prices'
+    },
+    'reverseExpectedProfitPoint': {
+        zh: '反推盈利点',
+        ru: 'Расч. маржа',
+        en: 'Implied profit %'
+    },
+    'reverseProfitPerTon': {
+        zh: '反推每吨盈利',
+        ru: 'Расч. прибыль/т',
+        en: 'Implied profit/t'
     },
     'exportPriceForDutyHint': {
-        zh: '填写此值则用出口价格计算关税，不填则使用进口结算货值',
-        ru: 'Если заполнено, используется для расчета пошлины; иначе используется импортная стоимость',
-        en: 'If filled, use this price for duty calculation; otherwise use import settlement value'
+        zh: '用于计算退税关税；不填则使用进口结算货值',
+        ru: 'Для расчета пошлины с возвратом НДС; если пусто — импортная стоимость',
+        en: 'Used for rebate duty; if blank, use import settlement value'
     },
     'effectiveDutyBase': {
-        zh: '实际关税基础价',
-        ru: 'Фактическая база для пошлины',
-        en: 'Effective Duty Base'
+        zh: '退税关税基础价',
+        ru: 'База пошлины с возвратом НДС',
+        en: 'Rebate duty base'
     },
     'exportPriceForDutyNoRebate': {
         zh: '关税计算-出口价格（不含退税）(RUB/t)',
@@ -1162,14 +1232,14 @@ const translations: Translations = {
         en: 'Export price for duty (no rebate) (RUB/t)'
     },
     'exportPriceForDutyNoRebateHint': {
-        zh: '不含退税口径的计税用出口价；不填则使用进口结算货值',
+        zh: '用于计算实际关税；不填则使用进口结算货值',
         ru: 'Без возврата НДС; если пусто — импортная стоимость',
-        en: 'Duty base export price excluding rebate; if blank, import settlement value'
+        en: 'Used for actual duty; if blank, use import settlement value'
     },
     'effectiveDutyBaseNoRebate': {
-        zh: '实际关税基础价（不含退税）',
-        ru: 'База пошлины (без возврата НДС)',
-        en: 'Effective duty base (no rebate)'
+        zh: '实际关税基础价',
+        ru: 'Фактическая база пошлины',
+        en: 'Actual duty base'
     },
     'addOverseasExtra': {
         zh: '添加海外杂费',

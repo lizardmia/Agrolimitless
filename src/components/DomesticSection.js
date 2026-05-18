@@ -7,12 +7,17 @@ function DomesticSection({
     importPriceUnit,
     setImportPriceUnit,
     exchangeRate = 1,
+    results,
+    subType,
+    policyName,
     intlFreightOverseasUsd,
-    setIntlFreightOverseasUsd,
     intlFreightDomesticUsd,
-    setIntlFreightDomesticUsd,
     insuranceRate,
     setInsuranceRate,
+    usdCnyRate,
+    tonsPerContainer,
+    dutyRate,
+    vatRate,
     domesticShortHaulCny,
     setDomesticShortHaulCny,
     domesticExtras,
@@ -65,34 +70,6 @@ function DomesticSection({
                         importSettlementCnyDisplay.toLocaleString(undefined, { maximumFractionDigits: 2 })
                     ),
                     h('span', { className: "text-[9px] text-slate-500 font-normal" }, importSettlementCnySuffix)
-                )
-            ),
-            h('div', { className: "grid grid-cols-2 gap-2" },
-                h('div', null,
-                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('chinaEuropeFreightOverseas')),
-                    h('input', {
-                        type: "number",
-                        value: intlFreightOverseasUsd === 0 ? '' : intlFreightOverseasUsd,
-                        onChange: e => {
-                            const val = e.target.value;
-                            setIntlFreightOverseasUsd(val === '' ? 0 : Number(val));
-                        },
-                        placeholder: "0",
-                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
-                    })
-                ),
-                h('div', null,
-                    h('label', { className: "text-[10px] text-slate-500 font-bold block mb-1 uppercase tracking-tighter" }, t('chinaEuropeFreightDomestic')),
-                    h('input', {
-                        type: "number",
-                        value: intlFreightDomesticUsd === 0 ? '' : intlFreightDomesticUsd,
-                        onChange: e => {
-                            const val = e.target.value;
-                            setIntlFreightDomesticUsd(val === '' ? 0 : Number(val));
-                        },
-                        placeholder: "0",
-                        className: "w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-100 focus:border-orange-300 outline-none"
-                    })
                 )
             ),
             h('div', null,
@@ -183,6 +160,29 @@ function DomesticSection({
                     },
                     placeholder: "0",
                     className: "w-full p-3 bg-orange-600 text-white rounded-2xl text-xl font-black text-center shadow-xl border-none ring-4 ring-orange-100 outline-none focus:scale-105 transition-transform placeholder:text-orange-300"
+                })
+            ),
+            results && typeof window !== 'undefined' && window.CostBreakdown && h('div', { className: "pt-3 border-t border-orange-200/70 space-y-2" },
+                h('div', { className: "flex items-center justify-between" },
+                    h('p', { className: "text-[10px] text-orange-600 font-black uppercase tracking-widest border-l-2 border-orange-300 pl-2" }, t('auditCostBreakdown')),
+                    h('span', { className: "text-[9px] text-slate-400 font-bold" }, t('cnyPerTon'))
+                ),
+                h(window.CostBreakdown, {
+                    results,
+                    subType,
+                    policyName,
+                    importPriceRub,
+                    exchangeRate,
+                    intlFreightOverseasUsd,
+                    intlFreightDomesticUsd,
+                    insuranceRate,
+                    usdCnyRate,
+                    tonsPerContainer,
+                    dutyRate,
+                    vatRate,
+                    embedded: true,
+                    language,
+                    t
                 })
             )
         )

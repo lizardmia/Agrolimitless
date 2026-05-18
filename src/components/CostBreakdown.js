@@ -14,6 +14,7 @@ function CostBreakdown({
     tonsPerContainer,
     dutyRate,
     vatRate,
+    embedded = false,
     language = 'zh',
     t = (key) => key
 }) {
@@ -133,14 +134,77 @@ function CostBreakdown({
             ]
         }
     ];
+
+    if (embedded) {
+        const renderCompactValue = (value, options = {}) =>
+            formatCurrencyLocal(value, { minimumFractionDigits: 2, maximumFractionDigits: 2, ...options });
+        const productPolicyTitle = `${t(`subtype_${subType}`) || subType} · ${policyName}`;
+
+        return h('div', { className: "bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden" },
+            h('div', { className: "px-3 py-3 bg-gradient-to-r from-slate-50 to-orange-50 border-b border-orange-100" },
+                h('div', { className: "flex items-start justify-between gap-2" },
+                    h('div', { className: "min-w-0" },
+                        h('p', { className: "text-[10px] text-slate-400 font-black uppercase tracking-widest" }, t('auditCostBreakdown')),
+                        h('p', { className: "text-xs font-bold text-slate-700 truncate", title: productPolicyTitle },
+                            t(`subtype_${subType}`) || subType,
+                            h('span', { className: "text-slate-400 font-normal" }, ` · ${policyName}`)
+                        )
+                    ),
+                    h('div', { className: "shrink-0 text-right" },
+                        h('p', { className: "text-[9px] text-slate-400 font-bold" }, t('baseLandingPrice')),
+                        h('p', { className: "text-lg font-black text-[#1a2b4b] tabular-nums" },
+                            "¥ ",
+                            renderCompactValue(results.baseLandingPrice)
+                        )
+                    )
+                )
+            ),
+            h('div', { className: "p-3 space-y-2 max-h-[520px] overflow-y-auto scrollable-list" },
+                breakdownItems.map((item, idx) => {
+                    const isGroup = item.type === 'group';
+                    return h('div', { key: idx, className: "rounded-xl border border-slate-100 bg-slate-50/60 overflow-hidden" },
+                        h('div', { className: "px-3 py-2 flex items-center gap-2" },
+                            h('div', { className: `w-2 h-2 rounded-full ${item.color} shrink-0` }),
+                            h('div', { className: "min-w-0 flex-1" },
+                                h('p', {
+                                    className: `text-[11px] font-black truncate ${item.isTitle ? 'text-purple-700' : item.isHighlight ? 'text-blue-700' : 'text-slate-700'}`,
+                                    title: item.label
+                                }, item.label),
+                                item.calc && h('p', { className: "text-[8px] text-slate-400 truncate", title: item.calc }, item.calc)
+                            ),
+                            h('p', { className: `text-sm font-black tabular-nums shrink-0 ${item.isTitle ? 'text-purple-600' : item.isHighlight ? 'text-blue-700' : 'text-slate-800'}` },
+                                "¥ ",
+                                renderCompactValue(item.val, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+                            )
+                        ),
+                        isGroup && h('div', { className: "bg-white/80 border-t border-slate-100 px-3 py-2 space-y-1.5" },
+                            item.children.map((child, childIdx) =>
+                                h('div', { key: childIdx, className: "flex items-center gap-2" },
+                                    h('div', { className: `w-1.5 h-1.5 rounded-full ${child.color} shrink-0` }),
+                                    h('div', { className: "min-w-0 flex-1" },
+                                        h('p', { className: "text-[10px] font-bold text-slate-600 truncate", title: child.label }, child.label),
+                                        child.calc && h('p', { className: "text-[8px] text-slate-300 truncate", title: child.calc }, child.calc)
+                                    ),
+                                    h('p', { className: "text-[11px] font-black text-slate-700 tabular-nums shrink-0" },
+                                        "¥ ",
+                                        renderCompactValue(child.val, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+                                    )
+                                )
+                            )
+                        )
+                    );
+                })
+            )
+        );
+    }
     
-    return h('div', { className: "bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100" },
-        h('h4', { className: "text-sm font-bold text-slate-800 mb-8 flex justify-between items-center italic" },
+    return h('div', { className: embedded ? "bg-white p-3 rounded-2xl shadow-sm border border-orange-100" : "bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100" },
+        h('h4', { className: embedded ? "text-xs font-bold text-slate-800 mb-4 space-y-1 italic" : "text-sm font-bold text-slate-800 mb-8 flex justify-between items-center italic" },
             h('span', { className: "flex items-center gap-2" },
                 h('div', { className: "w-1.5 h-6 bg-blue-600 rounded-full" }),
                 ` ${t('auditCostBreakdown')} (${t('cnyPerTon')})`
             ),
-            h('span', { className: "text-[10px] text-slate-400 font-medium tracking-tight" },
+            h('span', { className: "text-[10px] text-slate-400 font-medium tracking-tight block" },
                 `${t('boundProduct')}: `,
                 h('b', { className: "text-blue-600" }, t(`subtype_${subType}`) || subType),
                 ` (${policyName})`

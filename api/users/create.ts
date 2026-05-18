@@ -17,16 +17,18 @@ export default async function handler(
   }
 
   try {
-    const { username, password, role = 'user' } = req.body;
+    const { username, password, role = 'user', canFca = false, canDap = false, canDomestic = false } = req.body;
 
     // 验证输入
     if (!username || !password) {
       return res.status(400).json({ error: '用户名和密码不能为空' });
     }
 
-    if (role !== 'admin' && role !== 'user') {
-      return res.status(400).json({ error: '角色必须是 admin 或 user' });
+    if (role !== 'admin' && role !== 'ddp' && role !== 'user') {
+      return res.status(400).json({ error: '角色必须是 admin、ddp 或 user' });
     }
+
+    const isFullAccessRole = role === 'admin' || role === 'ddp';
 
     // 检查用户名是否已存在
     const { data: existingUser } = await supabase
@@ -48,9 +50,12 @@ export default async function handler(
       .insert({
         username,
         password_hash,
-        role
+        role,
+        can_fca: isFullAccessRole || !!canFca,
+        can_dap: isFullAccessRole || !!canDap,
+        can_domestic: isFullAccessRole || !!canDomestic
       })
-      .select('id, username, role, created_at, updated_at')
+      .select('id, username, role, can_fca, can_dap, can_domestic, created_at, updated_at')
       .single();
 
     if (error) {

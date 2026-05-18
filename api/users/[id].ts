@@ -20,7 +20,7 @@ export default async function handler(
   try {
     if (req.method === 'PUT') {
       // 更新用户
-      const { username, password, role } = req.body;
+      const { username, password, role, canFca, canDap, canDomestic } = req.body;
       const updates: any = {};
 
       // 检查用户名是否与其他用户冲突
@@ -44,15 +44,27 @@ export default async function handler(
       }
 
       // 更新角色
-      if (role && (role === 'admin' || role === 'user')) {
+      if (role && (role === 'admin' || role === 'ddp' || role === 'user')) {
         updates.role = role;
+      }
+
+      const nextRole = role || undefined;
+      const isFullAccessRole = nextRole === 'admin' || nextRole === 'ddp';
+      if (canFca !== undefined || isFullAccessRole) {
+        updates.can_fca = isFullAccessRole || !!canFca;
+      }
+      if (canDap !== undefined || isFullAccessRole) {
+        updates.can_dap = isFullAccessRole || !!canDap;
+      }
+      if (canDomestic !== undefined || isFullAccessRole) {
+        updates.can_domestic = isFullAccessRole || !!canDomestic;
       }
 
       const { data: user, error } = await supabase
         .from('users')
         .update(updates)
         .eq('id', id)
-        .select('id, username, role, created_at, updated_at')
+        .select('id, username, role, can_fca, can_dap, can_domestic, created_at, updated_at')
         .single();
 
       if (error) {

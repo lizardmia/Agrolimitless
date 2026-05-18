@@ -3,7 +3,118 @@
  */
 import { useState, useEffect } from 'react';
 import { getAllUsers, createUser, updateUser, deleteUser, isAdmin, getCurrentUser } from '../utils/auth.ts';
-import type { User } from '../utils/auth.ts';
+import type { User, UserRole } from '../utils/auth.ts';
+
+type AccessState = {
+    canFca: boolean;
+    canDap: boolean;
+    canDomestic: boolean;
+};
+
+const ROLE_LABELS: Record<UserRole, string> = {
+    admin: '超级管理员',
+    ddp: 'DDP账号',
+    user: '普通账号'
+};
+
+const defaultAccess: AccessState = {
+    canFca: false,
+    canDap: false,
+    canDomestic: false
+};
+
+function fullAccessForRole(role: UserRole, access: AccessState): AccessState {
+    if (role === 'admin' || role === 'ddp') {
+        return { canFca: true, canDap: true, canDomestic: true };
+    }
+    return access;
+}
+
+function accessFromUser(user: User): AccessState {
+    return fullAccessForRole(user.role, {
+        canFca: !!user.canFca,
+        canDap: !!user.canDap,
+        canDomestic: !!user.canDomestic
+    });
+}
+
+function AccessCheckboxes({
+    role,
+    access,
+    onChange
+}: {
+    role: UserRole;
+    access: AccessState;
+    onChange: (next: AccessState) => void;
+}) {
+    const effectiveAccess = fullAccessForRole(role, access);
+    const disabled = role === 'admin' || role === 'ddp';
+
+    const toggle = (key: keyof AccessState) => {
+        onChange({ ...access, [key]: !access[key] });
+    };
+
+    return (
+        <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">页面权限</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${disabled ? 'bg-gray-50 text-gray-400' : 'bg-white text-gray-700'}`}>
+                    <input
+                        type="checkbox"
+                        checked={effectiveAccess.canFca}
+                        disabled={disabled}
+                        onChange={() => toggle('canFca')}
+                    />
+                    FCA 海外段
+                </label>
+                <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${disabled ? 'bg-gray-50 text-gray-400' : 'bg-white text-gray-700'}`}>
+                    <input
+                        type="checkbox"
+                        checked={effectiveAccess.canDap}
+                        disabled={disabled}
+                        onChange={() => toggle('canDap')}
+                    />
+                    DAP 运费
+                </label>
+                <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${disabled ? 'bg-gray-50 text-gray-400' : 'bg-white text-gray-700'}`}>
+                    <input
+                        type="checkbox"
+                        checked={effectiveAccess.canDomestic}
+                        disabled={disabled}
+                        onChange={() => toggle('canDomestic')}
+                    />
+                    国内段
+                </label>
+            </div>
+            {disabled && (
+                <p className="text-xs text-gray-400">admin 和 DDP 默认拥有全部业务页面权限。</p>
+            )}
+        </div>
+    );
+}
+
+function AccessBadges({ user }: { user: User }) {
+    const access = accessFromUser(user);
+    const badges = [
+        access.canFca ? 'FCA' : null,
+        access.canDap ? 'DAP' : null,
+        access.canDomestic ? '国内段' : null
+    ].filter(Boolean);
+
+    if (badges.length === 0) {
+        return <span className="text-xs text-gray-400">无业务页面</span>;
+    }
+
+    return (
+        <div className="flex flex-wrap gap-1">
+            {badges.map((badge) => (
+                <span key={badge} className="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-bold">
+                    {badge}
+                </span>
+            ))}
+        </div>
+    );
+}
 
 export function UserManagement() {
     const [users, setUsers] = useState<User[]>([]);
@@ -14,15 +125,15 @@ export function UserManagement() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    // 创建用户表单
     const [newUsername, setNewUsername] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [newRole, setNewRole] = useState<'admin' | 'user'>('user');
+    const [newRole, setNewRole] = useState<UserRole>('user');
+    const [newAccess, setNewAccess] = useState<AccessState>(defaultAccess);
 
-    // 编辑用户表单
     const [editUsername, setEditUsername] = useState('');
     const [editPassword, setEditPassword] = useState('');
-    const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+    const [editRole, setEditRole] = useState<UserRole>('user');
+    const [editAccess, setEditAccess] = useState<AccessState>(defaultAccess);
 
     useEffect(() => {
         if (!isAdmin()) {
@@ -43,18 +154,24 @@ export function UserManagement() {
         }
     };
 
+    const resetCreateForm = () => {
+        setNewUsername('');
+        setNewPassword('');
+        setNewRole('user');
+        setNewAccess(defaultAccess);
+    };
+
     const handleCreate = async () => {
         setError('');
         setSuccess('');
-        
+
         try {
-            const result = await Promise.resolve(createUser(newUsername, newPassword, newRole));
-            
+            const access = fullAccessForRole(newRole, newAccess);
+            const result = await Promise.resolve(createUser(newUsername, newPassword, newRole, access));
+
             if (result.success) {
                 setSuccess('用户创建成功');
-                setNewUsername('');
-                setNewPassword('');
-                setNewRole('user');
+                resetCreateForm();
                 setShowCreateModal(false);
                 await loadUsers();
             } else {
@@ -70,6 +187,7 @@ export function UserManagement() {
         setEditUsername(user.username);
         setEditPassword('');
         setEditRole(user.role);
+        setEditAccess(accessFromUser(user));
         setError('');
         setSuccess('');
         setShowEditModal(true);
@@ -77,24 +195,23 @@ export function UserManagement() {
 
     const handleUpdate = async () => {
         if (!editingUser) return;
-        
+
         setError('');
         setSuccess('');
-        
-        const updates: { username?: string; password?: string; role?: 'admin' | 'user' } = {};
-        if (editUsername !== editingUser.username) {
-            updates.username = editUsername;
-        }
-        if (editPassword) {
-            updates.password = editPassword;
-        }
-        if (editRole !== editingUser.role) {
-            updates.role = editRole;
-        }
+
+        const access = fullAccessForRole(editRole, editAccess);
+        const updates = {
+            username: editUsername,
+            role: editRole,
+            canFca: access.canFca,
+            canDap: access.canDap,
+            canDomestic: access.canDomestic,
+            ...(editPassword ? { password: editPassword } : {})
+        };
 
         try {
             const result = await Promise.resolve(updateUser(editingUser.id, updates));
-            
+
             if (result.success) {
                 setSuccess('用户更新成功');
                 setShowEditModal(false);
@@ -115,10 +232,10 @@ export function UserManagement() {
 
         setError('');
         setSuccess('');
-        
+
         try {
             const result = await Promise.resolve(deleteUser(userId));
-            
+
             if (result.success) {
                 setSuccess('用户删除成功');
                 await loadUsers();
@@ -186,6 +303,7 @@ export function UserManagement() {
                             <tr className="bg-gray-50 border-b border-gray-200">
                                 <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">用户名</th>
                                 <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">角色</th>
+                                <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">页面权限</th>
                                 <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">创建时间</th>
                                 <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">操作</th>
                             </tr>
@@ -201,12 +319,17 @@ export function UserManagement() {
                                     </td>
                                     <td className="px-4 py-3 text-sm">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                            user.role === 'admin' 
-                                                ? 'bg-purple-100 text-purple-700' 
-                                                : 'bg-gray-100 text-gray-700'
+                                            user.role === 'admin'
+                                                ? 'bg-purple-100 text-purple-700'
+                                                : user.role === 'ddp'
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : 'bg-gray-100 text-gray-700'
                                         }`}>
-                                            {user.role === 'admin' ? '超级管理员' : '普通用户'}
+                                            {ROLE_LABELS[user.role] || '普通账号'}
                                         </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm">
+                                        <AccessBadges user={user} />
                                     </td>
                                     <td className="px-4 py-3 text-sm text-gray-600">
                                         {new Date(user.createdAt).toLocaleString('zh-CN')}
@@ -236,10 +359,9 @@ export function UserManagement() {
                 </div>
             </div>
 
-            {/* 创建用户弹窗 */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">创建用户</h3>
                         <div className="space-y-4">
                             <div>
@@ -266,13 +388,15 @@ export function UserManagement() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">角色</label>
                                 <select
                                     value={newRole}
-                                    onChange={(e) => setNewRole(e.target.value as 'admin' | 'user')}
+                                    onChange={(e) => setNewRole(e.target.value as UserRole)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 >
-                                    <option value="user">普通用户</option>
+                                    <option value="user">普通账号</option>
+                                    <option value="ddp">DDP账号</option>
                                     <option value="admin">超级管理员</option>
                                 </select>
                             </div>
+                            <AccessCheckboxes role={newRole} access={newAccess} onChange={setNewAccess} />
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button
@@ -285,8 +409,7 @@ export function UserManagement() {
                                 onClick={() => {
                                     setShowCreateModal(false);
                                     setError('');
-                                    setNewUsername('');
-                                    setNewPassword('');
+                                    resetCreateForm();
                                 }}
                                 className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                             >
@@ -297,10 +420,9 @@ export function UserManagement() {
                 </div>
             )}
 
-            {/* 编辑用户弹窗 */}
             {showEditModal && editingUser && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
                         <h3 className="text-xl font-bold text-gray-800 mb-4">编辑用户</h3>
                         <div className="space-y-4">
                             <div>
@@ -326,13 +448,15 @@ export function UserManagement() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">角色</label>
                                 <select
                                     value={editRole}
-                                    onChange={(e) => setEditRole(e.target.value as 'admin' | 'user')}
+                                    onChange={(e) => setEditRole(e.target.value as UserRole)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 >
-                                    <option value="user">普通用户</option>
+                                    <option value="user">普通账号</option>
+                                    <option value="ddp">DDP账号</option>
                                     <option value="admin">超级管理员</option>
                                 </select>
                             </div>
+                            <AccessCheckboxes role={editRole} access={editAccess} onChange={setEditAccess} />
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button

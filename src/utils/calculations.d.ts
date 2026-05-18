@@ -15,6 +15,7 @@ export declare function reverseFarmPriceFromArrivalPrice(params: {
     shortHaulFeePerTon?: number;
     exportExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
+    includeShortHaulInDuty?: boolean;
 }): number;
 
 export declare function reverseFarmPriceFromBasePrice(params: {
@@ -33,4 +34,5 @@ export declare function reverseFarmPriceFromBasePrice(params: {
     domesticShortHaulCny: number;
     domesticExtras: Array<{ id: number; name: string; value: number | string; unit: string }>;
     tonsPerContainer: number;
-}): number | null;
+    includeShortHaulInDuty?: boolean;
+}): { farmPriceRub: number; importPriceRubPerTon: number } | null;

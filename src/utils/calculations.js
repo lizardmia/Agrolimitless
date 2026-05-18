@@ -258,7 +258,8 @@ function reverseFarmPriceFromArrivalPrice(params) {
         shortHaulPricePerKmPerContainer = 0,
         shortHaulFeePerTon: shortHaulFeePerTonParam,
         exportExtras,
-        tonsPerContainer
+        tonsPerContainer,
+        includeShortHaulInDuty = true
     } = params;
     
     const tpc = tonsPerContainer || 1;
@@ -279,8 +280,9 @@ function reverseFarmPriceFromArrivalPrice(params) {
     // 目标海外到站价格（RUB/t）
     const targetArrivalPriceRub = targetArrivalPriceCny * exchangeRate;
     
-    // 倒推农场采购价
-    const farmPriceRub = targetArrivalPriceRub - shortHaulFeePerTon - exportExtrasTotalRub;
+    // 倒推农场采购价，口径与主计算的海外到站预估保持一致
+    const shortHaulRubInArrival = includeShortHaulInDuty ? shortHaulFeePerTon : 0;
+    const farmPriceRub = targetArrivalPriceRub - shortHaulRubInArrival - exportExtrasTotalRub;
     
     return Math.max(0, farmPriceRub);
 }
@@ -304,7 +306,8 @@ function reverseFarmPriceFromBasePrice(params) {
         insuranceRate,
         domesticShortHaulCny,
         domesticExtras,
-        tonsPerContainer
+        tonsPerContainer,
+        includeShortHaulInDuty = true
     } = params;
     
     const tpc = tonsPerContainer || 1;
@@ -329,8 +332,8 @@ function reverseFarmPriceFromBasePrice(params) {
         return null;
     }
     
-    // 转换为RUB
-    const importPriceRub = importValueCny * exchangeRate;
+    // 转换为 RUB/t
+    const importPriceRubPerTon = importValueCny * exchangeRate;
     
     const shortHaulFeePerTon =
         shortHaulFeePerTonParam !== undefined &&
@@ -345,10 +348,14 @@ function reverseFarmPriceFromBasePrice(params) {
         return sum + (item.unit === 'RUB/ton' ? value : value / tpc);
     }, 0);
     
-    // 倒推农场采购价
-    const farmPriceRub = importPriceRub - shortHaulFeePerTon - exportExtrasTotalRub;
+    // 倒推农场采购价，口径与主计算的海外到站预估保持一致
+    const shortHaulRubInArrival = includeShortHaulInDuty ? shortHaulFeePerTon : 0;
+    const farmPriceRub = importPriceRubPerTon - shortHaulRubInArrival - exportExtrasTotalRub;
     
-    return Math.max(0, farmPriceRub);
+    return {
+        farmPriceRub: Math.max(0, farmPriceRub),
+        importPriceRubPerTon
+    };
 }
 
 /**

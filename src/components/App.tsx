@@ -3,19 +3,17 @@
  * 使用模块化组件和工具函数
  */
 import { useState, useMemo, useEffect, useCallback, createElement } from 'react';
+import html2canvas from 'html2canvas';
 import { Header } from './Header';
 // 导入 JS 组件（通过类型声明文件）
 import { ExchangeRateCards } from './ExchangeRateCards';
-import { ResultsPanel } from './ResultsPanel';
-import { CostBreakdown } from './CostBreakdown';
-import { FinancePanel } from './FinancePanel';
 import { FarmPriceReverseModal } from './FarmPriceReverseModal.tsx';
 import { Login } from './Login.tsx';
 import { UserManagement } from './UserManagement.tsx';
 // 导入工具函数
 import { calculatePricing, PRODUCT_CATEGORIES } from '../utils/calculations.ts';
 import { DEFAULT_VALUES } from '../config/constants.js';
-import { isAuthenticated, isAdmin, logout, getCurrentUser } from '../utils/auth.ts';
+import { isAuthenticated, logout, getCurrentUser, canManageUsers, canViewFca, canViewDap, canViewDomestic } from '../utils/auth.ts';
 import { createTranslator, type Language } from '../utils/i18n.ts';
 import type { PricingResults, OverseaExtra, DomesticExtra, OverseaFarmHaulModule } from '../types/index.d';
 import { skuKey, type SkuLocalSaveMarks } from '../utils/skuPolicyMarkers.ts';
@@ -73,6 +71,7 @@ export function App() {
         return (saved === 'zh' || saved === 'ru' || saved === 'en') ? saved : 'zh';
     });
     const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+    const [isDownloadingScreenshot, setIsDownloadingScreenshot] = useState(false);
     
     // 保存语言选择到localStorage
     useEffect(() => {
@@ -668,9 +667,9 @@ export function App() {
         expectedProfitPercent, expectedProfitPerTonRub, includeShortHaulInDuty, exportPriceRub, exportPriceNoRebateRub
     ]);
     
-    // 当建议出口价变化时，自动填入关税计算出口价输入框（含「不含退税」与主出口价同步规则）
-    // 若期望盈利为0，自动填入保本出口价 P（总收入 P+退税 = 总支出 C+关税，见 calculatePricing.breakEvenExportPriceRub）
-    // 「不含退税」：按吨盈利时为保本（不含退税）+ 每吨盈利；否则与建议价同值；保本分支用 breakEvenExportPriceNoRebateRub
+    // 当建议出口价变化时，自动填入不含退税口径出口价。
+    // 若期望盈利为0，自动填入保本出口价 P（总收入 P+退税 = 总支出 C+关税，见 calculatePricing.breakEvenExportPriceRub）。
+    // 含退税口径不随期望盈利点联动，避免与不含退税价格混用。
     useEffect(() => {
         const suggested = results.suggestedExportPriceRub ?? 0;
         const be = results.breakEvenExportPriceRub ?? 0;
@@ -681,7 +680,6 @@ export function App() {
         const tonProfit = tonDefined ? Math.max(0, Number(tonRaw)) : 0;
 
         if (suggested > 0) {
-            setExportPriceRub(Math.round(suggested));
             if (expectedProfitPercent === 0 && tonDefined) {
                 setExportPriceNoRebateRub(Math.round(beNoRebate + tonProfit));
             } else {
@@ -689,12 +687,9 @@ export function App() {
             }
         } else if (expectedProfitPercent === 0 && exportDutyRate > 0) {
             if (be > 0) {
-                setExportPriceRub(be);
                 setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
             }
         } else if (expectedProfitPercent === 0 && exportDutyRate === 0) {
-            const be0 = be;
-            setExportPriceRub(be0 > 0 ? be0 : 0);
             setExportPriceNoRebateRub(beNoRebate > 0 ? beNoRebate : 0);
         }
     }, [
@@ -729,45 +724,130 @@ export function App() {
     
     console.log('✅ 用户已登录，显示主应用');
 
+    const currentUser = getCurrentUser();
+    const canUserManageUsers = canManageUsers(currentUser);
+    const showOverseaSection = canViewFca(currentUser);
+    const showExportPolicySection = canViewFca(currentUser);
+    const showRailFreightSection = canViewDap(currentUser);
+    const showDomesticSection = canViewDomestic(currentUser);
+    const showImportPolicySection = canViewDomestic(currentUser);
+    const showKpiSections = canViewFca(currentUser);
+    const visibleCoreSectionCount = [
+        showOverseaSection,
+        showExportPolicySection,
+        showRailFreightSection,
+        showDomesticSection,
+        showImportPolicySection
+    ].filter(Boolean).length;
+    const coreGridClass =
+        visibleCoreSectionCount <= 1
+            ? 'grid grid-cols-1 gap-6'
+            : visibleCoreSectionCount === 2
+                ? 'grid grid-cols-1 lg:grid-cols-2 gap-6'
+                : visibleCoreSectionCount === 3
+                    ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6'
+                    : visibleCoreSectionCount === 4
+                        ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6'
+                        : 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-6';
+
+    const handleDownloadScreenshot = async () => {
+        const content = document.querySelector<HTMLElement>('[data-screenshot-content="true"]');
+        if (!content || isDownloadingScreenshot) return;
+
+        setShowLanguageMenu(false);
+        setIsDownloadingScreenshot(true);
+        document.body.classList.add('image-export-mode');
+
+        try {
+            await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+            const sourceCanvas = await html2canvas(content, {
+                backgroundColor: '#f4f7fe',
+                scale: Math.min(2, window.devicePixelRatio || 1),
+                useCORS: true,
+                logging: false,
+                windowWidth: content.scrollWidth,
+                windowHeight: content.scrollHeight
+            });
+
+            const targetWidth = 2480;
+            const targetHeight = 1754;
+            const padding = 48;
+            const outputCanvas = document.createElement('canvas');
+            outputCanvas.width = targetWidth;
+            outputCanvas.height = targetHeight;
+
+            const ctx = outputCanvas.getContext('2d');
+            if (!ctx) return;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+            const scale = Math.min(
+                (targetWidth - padding * 2) / sourceCanvas.width,
+                (targetHeight - padding * 2) / sourceCanvas.height
+            );
+            const drawWidth = sourceCanvas.width * scale;
+            const drawHeight = sourceCanvas.height * scale;
+            const drawX = (targetWidth - drawWidth) / 2;
+            const drawY = (targetHeight - drawHeight) / 2;
+
+            ctx.drawImage(sourceCanvas, drawX, drawY, drawWidth, drawHeight);
+
+            const link = document.createElement('a');
+            const date = new Date().toISOString().slice(0, 10);
+            link.download = `pricing-page-${date}.png`;
+            link.href = outputCanvas.toDataURL('image/png');
+            link.click();
+        } finally {
+            document.body.classList.remove('image-export-mode');
+            setIsDownloadingScreenshot(false);
+        }
+    };
+
     // === 渲染 ===
     return (
         <>
             <FarmPriceReverseModal
                 isOpen={isReverseModalOpen}
                 onClose={() => setIsReverseModalOpen(false)}
-                onApply={(totalFarmRub) => {
+                onApply={(result) => {
+                    const totalFarmRub = result.farmPriceRub;
                     setOverseaModules((mods) => {
                         const rest = mods.slice(1).reduce((s, m) => s + (Number(m.farmPriceRub) || 0), 0);
                         const firstFarm = Math.max(0, Number(totalFarmRub) - rest);
                         return mods.map((m, i) => (i === 0 ? { ...m, farmPriceRub: firstFarm } : m));
                     });
+                    if (result.importPriceRubPerTon !== undefined) {
+                        const nextImportPrice =
+                            importPriceUnit === 'RUB/柜'
+                                ? result.importPriceRubPerTon * (tonsPerContainer || 1)
+                                : result.importPriceRubPerTon;
+                        setImportPriceRub(Math.max(0, nextImportPrice));
+                    }
                     setIsReverseModalOpen(false);
                 }}
                 exchangeRate={exchangeRate}
                 usdCnyRate={usdCnyRate}
                 shortHaulFeePerTon={shortHaulFeePerTonTotal}
                 exportExtras={exportExtras}
+                includeShortHaulInDuty={includeShortHaulInDuty}
                 dutyRate={dutyRate}
                 vatRate={vatRate}
-                importPriceRub={importPriceRub}
-                importPriceUnit={importPriceUnit}
                 intlFreightOverseasUsd={intlFreightOverseasUsd}
                 intlFreightDomesticUsd={intlFreightDomesticUsd}
                 insuranceRate={insuranceRate}
                 domesticShortHaulCny={domesticShortHaulCny}
                 domesticExtras={domesticExtras}
                 tonsPerContainer={tonsPerContainer}
-                collectionDays={collectionDays}
-                interestRate={interestRate}
                 language={language}
                 t={t}
             />
             <div className="min-h-screen bg-[#f4f7fe] p-6 font-sans text-slate-800">
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6" data-screenshot-content="true">
                 {/* 用户管理按钮和登出按钮 */}
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-3">
-                        {isAdmin() && (
+                        {canUserManageUsers && (
                             <button
                                 onClick={() => setShowUserManagement(!showUserManagement)}
                                 className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-700 transition-colors text-sm"
@@ -776,13 +856,25 @@ export function App() {
                             </button>
                         )}
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>{t('currentUser')}: {getCurrentUser()?.username}</span>
-                            {isAdmin() && (
+                            <span>{t('currentUser')}: {currentUser?.username}</span>
+                            {currentUser?.role === 'admin' && (
                                 <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">{t('admin')}</span>
+                            )}
+                            {currentUser?.role === 'ddp' && (
+                                <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-bold">DDP</span>
                             )}
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleDownloadScreenshot}
+                            disabled={isDownloadingScreenshot}
+                            className="no-print bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-wait transition-colors text-sm flex items-center gap-2"
+                            title={t('downloadScreenshot')}
+                        >
+                            <span>🖼️</span>
+                            <span>{isDownloadingScreenshot ? t('generatingScreenshot') : t('downloadScreenshot')}</span>
+                        </button>
                         {/* 语言选择按钮 */}
                         <div className="relative">
                             <button
@@ -849,56 +941,246 @@ export function App() {
                 </div>
 
                 {/* 用户管理页面 */}
-                {showUserManagement && isAdmin() ? (
+                {showUserManagement && canUserManageUsers ? (
                     <UserManagement />
                 ) : (
                     <>
                         <Header language={language} t={t} />
-                <ExchangeRateCards
-                    exchangeRate={exchangeRate}
-                    setExchangeRate={setExchangeRate}
-                    usdCnyRate={usdCnyRate}
-                    setUsdCnyRate={setUsdCnyRate}
-                    language={language}
-                    t={t}
-                />
-                
-                {/* 农场名称输入和保存 */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex items-center gap-3 mb-3">
-                        <label className="text-xs text-slate-400 font-bold uppercase whitespace-nowrap">🏡 {t('farmName')}</label>
-                        <input
-                            type="text"
-                            value={farmName}
-                            onChange={(e) => setFarmName(e.target.value)}
-                            placeholder={t('enterFarmName')}
-                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                        />
-                        <button
-                            onClick={saveFarmRecord}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2"
-                        >
-                            <span>💾</span>
-                            <span>{t('saveRecord')}</span>
-                        </button>
-                        <button
-                            onClick={() => setShowFarmRecords(true)}
-                            className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
-                        >
-                            <span>📋</span>
-                            <span>{t('viewRecords')}</span>
-                        </button>
-                    </div>
-                    {farmSaveStatus && (
-                        <div className={`text-xs font-bold py-2 px-3 rounded-lg ${
-                            farmSaveStatus.includes(t('saveFailed')) || farmSaveStatus.includes('失败')
-                                ? 'bg-red-100 text-red-700' 
-                                : 'bg-green-100 text-green-700'
-                        }`}>
-                            {farmSaveStatus}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                            <ExchangeRateCards
+                                exchangeRate={exchangeRate}
+                                setExchangeRate={setExchangeRate}
+                                usdCnyRate={usdCnyRate}
+                                setUsdCnyRate={setUsdCnyRate}
+                                language={language}
+                                t={t}
+                            />
+                            
+                            {/* 农场名称输入和保存 */}
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                    <p className="text-xs font-black text-slate-700 uppercase tracking-wider">🏡 {t('farmName')}</p>
+                                </div>
+                                <div className="p-4">
+                                <div className="space-y-3">
+                                    <input
+                                        type="text"
+                                        value={farmName}
+                                        onChange={(e) => setFarmName(e.target.value)}
+                                        placeholder={t('enterFarmName')}
+                                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none text-sm font-bold"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={saveFarmRecord}
+                                            className="bg-blue-600 text-white px-3 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                            <span>💾</span>
+                                            <span>{t('saveRecord')}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setShowFarmRecords(true)}
+                                            className="bg-emerald-600 text-white px-3 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors text-sm flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                            <span>📋</span>
+                                            <span>{t('viewRecords')}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                {farmSaveStatus && (
+                                    <div className={`text-xs font-bold py-2 px-3 rounded-lg mt-3 ${
+                                        farmSaveStatus.includes(t('saveFailed')) || farmSaveStatus.includes('失败')
+                                            ? 'bg-red-100 text-red-700' 
+                                            : 'bg-green-100 text-green-700'
+                                    }`}>
+                                        {farmSaveStatus}
+                                    </div>
+                                )}
+                                </div>
+                            </div>
+
+                            {/* 产品选择 */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                    <p className="text-xs font-black text-slate-700 uppercase tracking-wider">🏷️ {t('productCategory')}</p>
+                                </div>
+                                <div className="p-4">
+                                <div className="grid grid-cols-1 gap-2.5">
+                                    <select
+                                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-100"
+                                        value={category}
+                                        onChange={(e) => handleCategoryChange(e.target.value)}
+                                    >
+                                        {Object.keys(PRODUCT_CATEGORIES).map(cat => 
+                                            <option key={cat} value={cat}>{t(`category_${cat}`) || cat}</option>
+                                        )}
+                                    </select>
+                                    <select
+                                        className="p-3 bg-blue-600 text-white border-none rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-300"
+                                        value={subType}
+                                        onChange={(e) => handleSubTypeChange(e.target.value)}
+                                    >
+                                        {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => {
+                                            const sm = skuSaveMarks[skuKey(category, item)];
+                                            const hasImport = !!sm?.importSaved;
+                                            const hasExport = !!sm?.exportSaved;
+                                            const baseLabel = t(`subtype_${item}`) || item;
+                                            const marks = [
+                                                hasImport ? t('skuPolicyMarkImport') : null,
+                                                hasExport ? t('skuPolicyMarkExport') : null
+                                            ].filter(Boolean);
+                                            const suffix = marks.length > 0 ? `  [${marks.join('/')}]` : '';
+                                            const titleParts: string[] = [];
+                                            if (hasImport) titleParts.push(String(t('skuPolicyMarkImport')));
+                                            if (hasExport) titleParts.push(String(t('skuPolicyMarkExport')));
+                                            const optTitle =
+                                                marks.length > 0
+                                                    ? `${baseLabel} — ${titleParts.join(', ')}`
+                                                    : baseLabel;
+                                            return (
+                                                <option key={item} value={item} title={optTitle}>
+                                                    {baseLabel}
+                                                    {suffix}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                                <p className="text-[9px] text-slate-400 mt-2 leading-snug">{t('skuPolicyLegend')}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+                                    <span className={currentSkuSaveMarks.hasImport ? 'font-bold text-blue-600' : 'text-slate-400'}>
+                                        {t('skuSavedImportLabel')}: {currentSkuSaveMarks.hasImport ? t('skuSavedYes') : t('skuSavedNo')}
+                                    </span>
+                                    <span className="text-slate-300" aria-hidden>
+                                        |
+                                    </span>
+                                    <span className={currentSkuSaveMarks.hasExport ? 'font-bold text-emerald-600' : 'text-slate-400'}>
+                                        {t('skuSavedExportLabel')}: {currentSkuSaveMarks.hasExport ? t('skuSavedYes') : t('skuSavedNo')}
+                                    </span>
+                                </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {showKpiSections && (
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+                                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100">
+                                        <p className="text-slate-400 text-[10px] mb-1 font-bold uppercase tracking-tight">{t('basePriceNoInterest')}</p>
+                                        <div className="flex items-baseline">
+                                            <span className="text-sm font-bold mr-1 text-slate-400">¥</span>
+                                            <span className="text-xl font-black text-[#1a2b4b] tracking-tighter">
+                                                {results.baseLandingPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-[#1a2b4b] p-4 rounded-xl shadow-xl text-white">
+                                        <p className="text-slate-400 text-[10px] mb-1 font-bold uppercase tracking-tight">{t('totalPriceWithInterest')}</p>
+                                        <div className="flex items-baseline">
+                                            <span className="text-sm font-bold mr-1 text-slate-600">¥</span>
+                                            <span className="text-xl font-black tracking-tighter">
+                                                {results.fullCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 shadow-sm">
+                                        <p className="text-emerald-700 text-[10px] mb-1 font-bold uppercase tracking-tight">{t('grossProfit')}</p>
+                                        <div className="text-emerald-600 flex items-baseline">
+                                            <span className="text-sm font-bold mr-1">¥</span>
+                                            <span className="text-xl font-black tracking-tighter">
+                                                {results.profitNoInterest.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 shadow-sm">
+                                        <p className="text-blue-700 text-[10px] mb-1 font-bold uppercase tracking-tight">{t('estimatedNetProfit')}</p>
+                                        <div className="text-blue-600 flex items-baseline">
+                                            <span className="text-sm font-bold mr-1">¥</span>
+                                            <span className="text-xl font-black tracking-tighter">
+                                                {results.profitWithInterest.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-[#1a2b4b] rounded-2xl p-6 text-white shadow-xl space-y-5">
+                                    <div className="grid grid-cols-2 gap-5">
+                                        <div>
+                                            <p className="text-[10px] text-blue-200 mb-2 font-bold uppercase tracking-widest italic">{t('totalContainers')}</p>
+                                            <input
+                                                type="number"
+                                                value={totalContainers === 0 ? '' : totalContainers}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setTotalContainers(val === '' ? 0 : Number(val));
+                                                }}
+                                                placeholder="0"
+                                                className="text-4xl font-black bg-transparent border-b-4 border-blue-400 w-full outline-none text-white focus:border-white transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-blue-200 mb-2 font-bold uppercase tracking-widest italic">{t('tonsPerContainer')}</p>
+                                            <input
+                                                type="number"
+                                                value={tonsPerContainer === 0 ? '' : tonsPerContainer}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setTonsPerContainer(val === '' ? 0 : Number(val));
+                                                }}
+                                                placeholder="0"
+                                                className="text-4xl font-black bg-transparent border-b-4 border-blue-400 w-full outline-none text-white focus:border-white transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="pt-4 border-t border-blue-500/50">
+                                        <p className="text-[10px] text-blue-100 mb-2 font-black uppercase tracking-[0.2em] italic">{`${t('totalCapitalOccupied')} (${t('cny')})`}</p>
+                                        <span className="text-4xl font-black tabular-nums drop-shadow-lg">
+                                            ¥ {results.totalCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest italic border-b-2 border-indigo-100 pb-2">{t('financeLeverage')}</h4>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-end">
+                                            <span className="text-[10px] text-slate-400 font-black uppercase">{t('collectionCycle')}</span>
+                                            <span className="text-indigo-600 text-lg font-black">{collectionDays}<span className="text-[10px] font-normal uppercase"> Days</span></span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="150"
+                                            value={collectionDays}
+                                            onChange={e => setCollectionDays(Number(e.target.value))}
+                                            className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-end">
+                                            <span className="text-[10px] text-slate-400 font-black uppercase">{t('annualInterestRate')}</span>
+                                            <span className="text-indigo-600 text-lg font-black">{interestRate}% <span className="text-[10px] font-normal uppercase">APR</span></span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="15"
+                                            step="0.1"
+                                            value={interestRate}
+                                            onChange={e => setInterestRate(Number(e.target.value))}
+                                            className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                    </div>
+                                    <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl p-5 text-white shadow-xl shadow-indigo-100">
+                                        <p className="text-[10px] opacity-70 mb-2 font-black uppercase italic tracking-[0.2em]">{t('financialCostPerTon')}</p>
+                                        <div className="flex items-baseline">
+                                            <span className="text-xl font-bold mr-1 opacity-50">¥</span>
+                                            <span className="text-4xl font-black tracking-tighter">
+                                                {results.interestExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                 {/* 查看农场记录弹窗 */}
                 {showFarmRecords && (
@@ -973,68 +1255,10 @@ export function App() {
                     </div>
                 )}
                 
-                {/* 产品选择 */}
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <label className="text-xs text-slate-400 font-bold uppercase block mb-3">🏷️ {t('productCategory')}</label>
-                    <div className="grid grid-cols-2 gap-2">
-                        <select
-                            className="p-3 bg-[#f8faff] border border-slate-200 rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-100"
-                            value={category}
-                            onChange={(e) => handleCategoryChange(e.target.value)}
-                        >
-                            {Object.keys(PRODUCT_CATEGORIES).map(cat => 
-                                <option key={cat} value={cat}>{t(`category_${cat}`) || cat}</option>
-                            )}
-                        </select>
-                        <select
-                            className="p-3 bg-blue-600 text-white border-none rounded-xl text-xs font-bold w-full focus:ring-2 focus:ring-blue-300"
-                            value={subType}
-                            onChange={(e) => handleSubTypeChange(e.target.value)}
-                        >
-                            {PRODUCT_CATEGORIES[category as keyof typeof PRODUCT_CATEGORIES].map(item => {
-                                const sm = skuSaveMarks[skuKey(category, item)];
-                                const hasImport = !!sm?.importSaved;
-                                const hasExport = !!sm?.exportSaved;
-                                const baseLabel = t(`subtype_${item}`) || item;
-                                const marks = [
-                                    hasImport ? t('skuPolicyMarkImport') : null,
-                                    hasExport ? t('skuPolicyMarkExport') : null
-                                ].filter(Boolean);
-                                const suffix = marks.length > 0 ? `  [${marks.join('/')}]` : '';
-                                const titleParts: string[] = [];
-                                if (hasImport) titleParts.push(String(t('skuPolicyMarkImport')));
-                                if (hasExport) titleParts.push(String(t('skuPolicyMarkExport')));
-                                const optTitle =
-                                    marks.length > 0
-                                        ? `${baseLabel} — ${titleParts.join(', ')}`
-                                        : baseLabel;
-                                return (
-                                    <option key={item} value={item} title={optTitle}>
-                                        {baseLabel}
-                                        {suffix}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                    </div>
-                    <p className="text-[9px] text-slate-400 mt-2 leading-snug">{t('skuPolicyLegend')}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
-                        <span className={currentSkuSaveMarks.hasImport ? 'font-bold text-blue-600' : 'text-slate-400'}>
-                            {t('skuSavedImportLabel')}: {currentSkuSaveMarks.hasImport ? t('skuSavedYes') : t('skuSavedNo')}
-                        </span>
-                        <span className="text-slate-300" aria-hidden>
-                            |
-                        </span>
-                        <span className={currentSkuSaveMarks.hasExport ? 'font-bold text-emerald-600' : 'text-slate-400'}>
-                            {t('skuSavedExportLabel')}: {currentSkuSaveMarks.hasExport ? t('skuSavedYes') : t('skuSavedNo')}
-                        </span>
-                    </div>
-                </div>
-                
                 {/* 计算核心参数 - 横向排列 */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                <div className={coreGridClass}>
                     {/* 1. 海外段计算参数 */}
-                    {typeof window !== 'undefined' && (window as any).OverseaSection && createElement(
+                    {showOverseaSection && typeof window !== 'undefined' && (window as any).OverseaSection && createElement(
                         (window as any).OverseaSection,
                         {
                             overseaModules,
@@ -1075,7 +1299,7 @@ export function App() {
                     )}
                     
                     {/* 2. 出口板块政策 */}
-                    {typeof window !== 'undefined' && (window as any).ExportPolicySection && createElement(
+                    {showExportPolicySection && typeof window !== 'undefined' && (window as any).ExportPolicySection && createElement(
                         (window as any).ExportPolicySection,
                         {
                             exportPolicyName,
@@ -1097,24 +1321,42 @@ export function App() {
                             t
                         }
                     )}
-                    
-                    {/* 3. 国内段计算参数 */}
-                    {typeof window !== 'undefined' && (window as any).DomesticSection && createElement(
-                        (window as any).DomesticSection,
+
+                    {/* 3. 中欧班列运费 */}
+                    {showRailFreightSection && typeof window !== 'undefined' && (window as any).RailFreightSection && createElement(
+                        (window as any).RailFreightSection,
                         {
-                            importPriceRub,
-                            setImportPriceRub,
-                            importPriceUnit,
-                            setImportPriceUnit: setImportPriceUnit as any,
-                            exchangeRate,
                             intlFreightOverseasUsd,
                             setIntlFreightOverseasUsd,
                             intlFreightDomesticUsd,
                             setIntlFreightDomesticUsd,
-                            insuranceRate,
-                            setInsuranceRate,
-                            domesticShortHaulCny,
-                            setDomesticShortHaulCny,
+                            language,
+                            t
+                        }
+                    )}
+                    
+                    {/* 4. 国内段计算参数 */}
+                    {showDomesticSection && typeof window !== 'undefined' && (window as any).DomesticSection && createElement(
+                        (window as any).DomesticSection,
+                        {
+                            importPriceRub,
+                            setImportPriceRub,
+	                            importPriceUnit,
+	                            setImportPriceUnit: setImportPriceUnit as any,
+	                            exchangeRate,
+	                            results,
+	                            subType,
+	                            policyName,
+	                            intlFreightOverseasUsd,
+	                            intlFreightDomesticUsd,
+	                            insuranceRate,
+	                            setInsuranceRate,
+	                            usdCnyRate,
+	                            tonsPerContainer,
+	                            dutyRate,
+	                            vatRate,
+	                            domesticShortHaulCny,
+	                            setDomesticShortHaulCny,
                             domesticExtras,
                             addDomesticExtra,
                             deleteDomesticExtra,
@@ -1127,8 +1369,8 @@ export function App() {
                         }
                     )}
                     
-                    {/* 4. 进口税收政策 */}
-                    {typeof window !== 'undefined' && (window as any).PolicySection && createElement(
+                    {/* 5. 进口税收政策 */}
+                    {showImportPolicySection && typeof window !== 'undefined' && (window as any).PolicySection && createElement(
                         (window as any).PolicySection,
                         {
                             policyName,
@@ -1148,44 +1390,7 @@ export function App() {
                     )}
                 </div>
                 
-                {/* 结果展示区域 */}
-                <div className="space-y-6">
-                    <ResultsPanel
-                        results={results}
-                        totalContainers={totalContainers}
-                        setTotalContainers={setTotalContainers}
-                        tonsPerContainer={tonsPerContainer}
-                        setTonsPerContainer={setTonsPerContainer}
-                        language={language}
-                        t={t}
-                    />
-                    <CostBreakdown
-                        results={results}
-                        subType={subType}
-                        policyName={policyName}
-                        importPriceRub={importPriceRub}
-                        exchangeRate={exchangeRate}
-                        intlFreightOverseasUsd={intlFreightOverseasUsd}
-                        intlFreightDomesticUsd={intlFreightDomesticUsd}
-                        insuranceRate={insuranceRate}
-                        usdCnyRate={usdCnyRate}
-                        tonsPerContainer={tonsPerContainer}
-                        dutyRate={dutyRate}
-                        vatRate={vatRate}
-                        language={language}
-                        t={t}
-                    />
-                    <FinancePanel
-                        collectionDays={collectionDays}
-                        setCollectionDays={setCollectionDays}
-                        interestRate={interestRate}
-                        setInterestRate={setInterestRate}
-                        interestExpense={results.interestExpense}
-                        language={language}
-                        t={t}
-                    />
-                </div>
-                    </>
+	                    </>
                 )}
             </div>
         </div>

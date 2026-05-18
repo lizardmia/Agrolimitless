@@ -19,7 +19,7 @@ export default async function handler(
     // 获取所有用户（排除密码字段）
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, username, role, created_at, updated_at')
+      .select('id, username, role, can_fca, can_dap, can_domestic, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {

@@ -2,7 +2,7 @@
  * DomesticSection 组件的类型声明
  */
 import type React from 'react';
-import type { DomesticExtra } from '../types/index.d';
+import type { DomesticExtra, PricingResults } from '../types/index.d';
 
 export interface DomesticSectionProps {
     importPriceRub: number;
@@ -11,12 +11,17 @@ export interface DomesticSectionProps {
     setImportPriceUnit: (value: 'RUB/t' | 'RUB/柜') => void;
     /** 卢布/人民币，与 calculatePricing 一致 */
     exchangeRate?: number;
-    intlFreightOverseasUsd: number;
-    setIntlFreightOverseasUsd: (value: number) => void;
-    intlFreightDomesticUsd: number;
-    setIntlFreightDomesticUsd: (value: number) => void;
+    results?: PricingResults;
+    subType?: string;
+    policyName?: string;
+    intlFreightOverseasUsd?: number;
+    intlFreightDomesticUsd?: number;
     insuranceRate: number;
     setInsuranceRate: (value: number) => void;
+    usdCnyRate?: number;
+    tonsPerContainer?: number;
+    dutyRate?: number;
+    vatRate?: number;
     domesticShortHaulCny: number;
     setDomesticShortHaulCny: (value: number) => void;
     domesticExtras: DomesticExtra[];

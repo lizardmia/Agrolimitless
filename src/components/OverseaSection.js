@@ -185,6 +185,23 @@ function OverseaSection({
             : russianArrivalPriceRub > 0
                 ? (shortHaulFeePerTon / russianArrivalPriceRub) * 100
                 : 0;
+    const actualDutyRub = (Number(effectiveDutyBaseNoRebateRub) || 0) * ((Number(exportDutyRate) || 0) / 100);
+    const reverseExpectedProfitPercentFromPrice = (priceRub) => {
+        const price = Number(priceRub) || 0;
+        const r = (Number(exportDutyRate) || 0) / 100;
+        if (price <= 0 || costBase <= 0 || r >= 1) return null;
+        return Math.max(0, ((price * (1 - r)) / costBase - 1) * 100);
+    };
+    const reverseProfitPerTonFromPrice = (priceRub, breakEvenRub) => {
+        const price = Number(priceRub) || 0;
+        const be = Number(breakEvenRub) || 0;
+        if (price <= 0 || be <= 0) return null;
+        return Math.max(0, price - be);
+    };
+    const rebateReverseProfitPercent = reverseExpectedProfitPercentFromPrice(exportPriceRub);
+    const rebateReverseProfitPerTon = reverseProfitPerTonFromPrice(exportPriceRub, breakEvenExportPriceRub);
+    const noRebateReverseProfitPercent = reverseExpectedProfitPercentFromPrice(exportPriceNoRebateRub);
+    const noRebateReverseProfitPerTon = reverseProfitPerTonFromPrice(exportPriceNoRebateRub, breakEvenExportPriceNoRebateRub);
     
     return h('div', { className: "bg-orange-50/50 p-3 rounded-xl border border-orange-100 space-y-2 shadow-sm" },
         h('div', { className: "flex justify-between items-center gap-2 mb-1" },
@@ -614,7 +631,7 @@ function OverseaSection({
                         )
                     )
                 ),
-                h('div', { className: "mt-2 pt-2 border-t border-slate-100 grid grid-cols-3 gap-1.5 text-center" },
+                h('div', { className: "mt-2 pt-2 border-t border-slate-100 grid grid-cols-4 gap-1.5 text-center" },
                     h('div', { className: "rounded-md bg-green-50/80 px-1 py-1 border border-green-100" },
                         h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('vatSumTotal')),
                         h('p', { className: "text-[10px] font-bold text-green-700 tabular-nums" },
@@ -622,13 +639,19 @@ function OverseaSection({
                         )
                     ),
                     h('div', { className: "rounded-md bg-blue-50/80 px-1 py-1 border border-blue-100" },
-                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('dutyTax')),
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('rebateDutyTax')),
                         h('p', { className: "text-[10px] font-bold text-blue-600 tabular-nums" },
                             formatCurrencyLocal(exportDutyRub, { maximumFractionDigits: 0 })
                         )
                     ),
+                    h('div', { className: "rounded-md bg-sky-50/80 px-1 py-1 border border-sky-100" },
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('actualDutyTax')),
+                        h('p', { className: "text-[10px] font-bold text-sky-700 tabular-nums" },
+                            formatCurrencyLocal(actualDutyRub, { maximumFractionDigits: 0 })
+                        )
+                    ),
                     h('div', { className: "rounded-md bg-violet-50/80 px-1 py-1 border border-violet-100" },
-                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('vatMinusDuty')),
+                        h('p', { className: "text-[8px] text-slate-500 font-bold leading-tight" }, t('vatMinusRebateDuty')),
                         h('p', { className: "text-[10px] font-black text-violet-700 tabular-nums" },
                             formatCurrencyLocal(displayVatSumRub - exportDutyRub, { maximumFractionDigits: 0 })
                         )
@@ -783,68 +806,135 @@ function OverseaSection({
                 )
             ),
 
-            // 关税计算出口价（双列）
+            // 保本出口价展示 + 关税计算出口价（双列）
             h('div', { className: "mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200" },
                 h('div', { className: "grid grid-cols-1 sm:grid-cols-2 gap-2" },
                     h('div', { className: "space-y-1" },
-                        h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDuty')),
+                        h('div', { className: "flex items-center justify-between gap-1" },
+                            h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('breakEvenDutyPriceForRebate')),
+                            h('span', { className: "text-[8px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded px-1 py-0.5 shrink-0" }, t('breakEvenFlag'))
+                        ),
                         h('div', { className: "flex items-center gap-1" },
                             h('input', {
                                 type: 'number',
                                 min: 0,
                                 step: 100,
-                                value: exportPriceRub === 0 ? '' : exportPriceRub,
-                                onChange: (e) => {
-                                    const val = e.target.value;
-                                    if (val === '') {
-                                        setExportPriceRub && setExportPriceRub(0);
-                                    } else {
-                                        const n = parseFloat(val);
-                                        if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
-                                    }
-                                },
-                                className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                value: breakEvenExportPriceRub === 0 ? '' : breakEvenExportPriceRub,
+                                readOnly: true,
+                                className: "min-w-0 flex-1 text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
                                 placeholder: t('importSettlementValue')
                             }),
                             h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
                         ),
-                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyHint')),
-                        effectiveDutyBaseRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
-                            h('span', { className: "text-blue-600" }, `${t('effectiveDutyBase')}: `),
-                            h('span', { className: "font-bold tabular-nums" },
-                                formatCurrencyLocal(effectiveDutyBaseRub, { maximumFractionDigits: 0 }),
-                                ` ${t('rubPerTon')}`
-                            )
-                        )
+                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('breakEvenDutyPriceHint'))
                     ),
                     h('div', { className: "space-y-1" },
-                        h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDutyNoRebate')),
+                        h('div', { className: "flex items-center justify-between gap-1" },
+                            h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('breakEvenDutyPriceNoRebate')),
+                            h('span', { className: "text-[8px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded px-1 py-0.5 shrink-0" }, t('breakEvenFlag'))
+                        ),
                         h('div', { className: "flex items-center gap-1" },
                             h('input', {
                                 type: 'number',
                                 min: 0,
                                 step: 100,
-                                value: exportPriceNoRebateRub === 0 ? '' : exportPriceNoRebateRub,
-                                onChange: (e) => {
-                                    const val = e.target.value;
-                                    if (val === '') {
-                                        setExportPriceNoRebateRub && setExportPriceNoRebateRub(0);
-                                    } else {
-                                        const n = parseFloat(val);
-                                        if (!isNaN(n) && n >= 0) setExportPriceNoRebateRub && setExportPriceNoRebateRub(n);
-                                    }
-                                },
-                                className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                value: breakEvenExportPriceNoRebateRub === 0 ? '' : breakEvenExportPriceNoRebateRub,
+                                readOnly: true,
+                                className: "min-w-0 flex-1 text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
                                 placeholder: t('importSettlementValue')
                             }),
                             h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
                         ),
-                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyNoRebateHint')),
-                        effectiveDutyBaseNoRebateRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
-                            h('span', { className: "text-blue-600" }, `${t('effectiveDutyBaseNoRebate')}: `),
-                            h('span', { className: "font-bold tabular-nums" },
-                                formatCurrencyLocal(effectiveDutyBaseNoRebateRub, { maximumFractionDigits: 0 }),
-                                ` ${t('rubPerTon')}`
+                        h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('breakEvenDutyPriceHint'))
+                    )
+                ),
+                h('div', { className: "mt-2 pt-2 border-t border-blue-200/80" },
+                    h('p', { className: "text-[9px] font-black text-blue-800 mb-1.5" }, t('editableDutyPrices')),
+                    h('div', { className: "grid grid-cols-1 sm:grid-cols-2 gap-2" },
+                        h('div', { className: "space-y-1" },
+                            h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDuty')),
+                            h('div', { className: "flex items-center gap-1" },
+                                h('input', {
+                                    type: 'number',
+                                    min: 0,
+                                    step: 100,
+                                    value: exportPriceRub === 0 ? '' : exportPriceRub,
+                                    onChange: (e) => {
+                                        const val = e.target.value;
+                                        if (val === '') {
+                                            setExportPriceRub && setExportPriceRub(0);
+                                        } else {
+                                            const n = parseFloat(val);
+                                            if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
+                                        }
+                                    },
+                                    className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                    placeholder: t('importSettlementValue')
+                                }),
+                                h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                            ),
+                            h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyHint')),
+                            exportPriceRub > 0 && h('div', { className: "grid grid-cols-2 gap-1 text-[8px] text-blue-700" },
+                                h('p', null,
+                                    t('reverseExpectedProfitPoint'),
+                                    ': ',
+                                    rebateReverseProfitPercent === null ? '-' : `${formatCurrencyLocal(rebateReverseProfitPercent, { maximumFractionDigits: 2 })}%`
+                                ),
+                                h('p', { className: "text-right" },
+                                    t('reverseProfitPerTon'),
+                                    ': ',
+                                    rebateReverseProfitPerTon === null ? '-' : `${formatCurrencyLocal(rebateReverseProfitPerTon, { maximumFractionDigits: 0 })} ${t('rubPerTon')}`
+                                )
+                            ),
+                            effectiveDutyBaseRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
+                                h('span', { className: "text-blue-600" }, `${t('effectiveDutyBase')}: `),
+                                h('span', { className: "font-bold tabular-nums" },
+                                    formatCurrencyLocal(effectiveDutyBaseRub, { maximumFractionDigits: 0 }),
+                                    ` ${t('rubPerTon')}`
+                                )
+                            )
+                        ),
+                        h('div', { className: "space-y-1" },
+                            h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDutyNoRebate')),
+                            h('div', { className: "flex items-center gap-1" },
+                                h('input', {
+                                    type: 'number',
+                                    min: 0,
+                                    step: 100,
+                                    value: exportPriceNoRebateRub === 0 ? '' : exportPriceNoRebateRub,
+                                    onChange: (e) => {
+                                        const val = e.target.value;
+                                        if (val === '') {
+                                            setExportPriceNoRebateRub && setExportPriceNoRebateRub(0);
+                                        } else {
+                                            const n = parseFloat(val);
+                                            if (!isNaN(n) && n >= 0) setExportPriceNoRebateRub && setExportPriceNoRebateRub(n);
+                                        }
+                                    },
+                                    className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                    placeholder: t('importSettlementValue')
+                                }),
+                                h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                            ),
+                            h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyNoRebateHint')),
+                            exportPriceNoRebateRub > 0 && h('div', { className: "grid grid-cols-2 gap-1 text-[8px] text-blue-700" },
+                                h('p', null,
+                                    t('reverseExpectedProfitPoint'),
+                                    ': ',
+                                    noRebateReverseProfitPercent === null ? '-' : `${formatCurrencyLocal(noRebateReverseProfitPercent, { maximumFractionDigits: 2 })}%`
+                                ),
+                                h('p', { className: "text-right" },
+                                    t('reverseProfitPerTon'),
+                                    ': ',
+                                    noRebateReverseProfitPerTon === null ? '-' : `${formatCurrencyLocal(noRebateReverseProfitPerTon, { maximumFractionDigits: 0 })} ${t('rubPerTon')}`
+                                )
+                            ),
+                            effectiveDutyBaseNoRebateRub > 0 && h('p', { className: "text-[9px] text-blue-700 pt-0.5 border-t border-blue-200/80" },
+                                h('span', { className: "text-blue-600" }, `${t('effectiveDutyBaseNoRebate')}: `),
+                                h('span', { className: "font-bold tabular-nums" },
+                                    formatCurrencyLocal(effectiveDutyBaseNoRebateRub, { maximumFractionDigits: 0 }),
+                                    ` ${t('rubPerTon')}`
+                                )
                             )
                         )
                     )

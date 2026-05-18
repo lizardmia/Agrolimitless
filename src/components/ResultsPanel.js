@@ -12,46 +12,6 @@ function ResultsPanel({ results, totalContainers, setTotalContainers, tonsPerCon
     });
     
     return h('div', { className: "space-y-6" },
-        // 核心指标卡片
-        h('div', { className: "grid grid-cols-1 md:grid-cols-4 gap-4" },
-            h('div', { className: "bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:scale-[1.02] transition-transform" },
-                h('p', { className: "text-slate-400 text-[10px] mb-1 font-bold uppercase tracking-tight" }, t('basePriceNoInterest')),
-                h('div', { className: "flex items-baseline" },
-                    h('span', { className: "text-sm font-bold mr-1 text-slate-400" }, "¥"),
-                    h('span', { className: "text-2xl font-black text-[#1a2b4b] tracking-tighter" },
-                        formatCurrencyLocal(results.baseLandingPrice, { maximumFractionDigits: 2 })
-                    )
-                )
-            ),
-            h('div', { className: "bg-[#1a2b4b] p-6 rounded-[2rem] shadow-xl text-white hover:scale-[1.02] transition-transform" },
-                h('p', { className: "text-slate-400 text-[10px] mb-1 font-bold uppercase tracking-tight" }, t('totalPriceWithInterest')),
-                h('div', { className: "flex items-baseline" },
-                    h('span', { className: "text-sm font-bold mr-1 text-slate-600" }, "¥"),
-                    h('span', { className: "text-2xl font-black tracking-tighter" },
-                        formatCurrencyLocal(results.fullCost, { maximumFractionDigits: 2 })
-                    )
-                )
-            ),
-            h('div', { className: "p-5 lg:p-6 rounded-xl lg:rounded-[2rem] bg-emerald-50 border border-emerald-100 shadow-sm hover:scale-[1.02] transition-transform" },
-                h('p', { className: "text-emerald-700 text-[10px] mb-1 font-bold uppercase tracking-tight" }, t('grossProfit')),
-                h('div', { className: "text-emerald-600 flex items-baseline" },
-                    h('span', { className: "text-sm font-bold mr-1" }, "¥"),
-                    h('span', { className: "text-2xl font-black tracking-tighter" },
-                        formatCurrencyLocal(results.profitNoInterest, { maximumFractionDigits: 0 })
-                    )
-                )
-            ),
-            h('div', { className: "p-6 rounded-[2rem] bg-blue-50 border border-blue-100 shadow-sm hover:scale-[1.02] transition-transform" },
-                h('p', { className: "text-blue-700 text-[10px] mb-1 font-bold uppercase tracking-tight" }, t('estimatedNetProfit')),
-                h('div', { className: "text-blue-600 flex items-baseline" },
-                    h('span', { className: "text-sm font-bold mr-1" }, "¥"),
-                    h('span', { className: "text-2xl font-black tracking-tighter" },
-                        formatCurrencyLocal(results.profitWithInterest, { maximumFractionDigits: 0 })
-                    )
-                )
-            )
-        ),
-        
         // 总案核算
         h('div', { className: "bg-gradient-to-br from-blue-600 to-blue-700 rounded-[2.5rem] p-10 text-white flex flex-col md:flex-row items-center justify-between shadow-2xl shadow-blue-200 gap-8" },
             h('div', { className: "flex gap-10" },

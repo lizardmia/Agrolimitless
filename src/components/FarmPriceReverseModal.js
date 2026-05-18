@@ -17,25 +17,22 @@ function FarmPriceReverseModal({
     usdCnyRate,
     shortHaulFeePerTon,
     exportExtras,
+    includeShortHaulInDuty = true,
     dutyRate,
     vatRate,
-    importPriceRub,
-    importPriceUnit,
     intlFreightOverseasUsd,
     intlFreightDomesticUsd,
     insuranceRate,
     domesticShortHaulCny,
     domesticExtras,
     tonsPerContainer,
-    collectionDays,
-    interestRate,
     language = 'zh',
     t = (key) => key
 }) {
     const [mode, setMode] = useState('arrival');
     const [targetArrivalPriceCny, setTargetArrivalPriceCny] = useState(0);
     const [targetBaseLandingPriceCny, setTargetBaseLandingPriceCny] = useState(0);
-    const [calculatedFarmPrice, setCalculatedFarmPrice] = useState(null);
+    const [calculationResult, setCalculationResult] = useState(undefined);
     
     if (!isOpen) return null;
     
@@ -46,13 +43,15 @@ function FarmPriceReverseModal({
         
         if (mode === 'arrival') {
             if (targetArrivalPriceCny > 0 && reverseFarmPriceFromArrivalPrice) {
-                result = reverseFarmPriceFromArrivalPrice({
+                const farmPriceRub = reverseFarmPriceFromArrivalPrice({
                     targetArrivalPriceCny,
                     exchangeRate,
                     shortHaulFeePerTon,
                     exportExtras,
-                    tonsPerContainer
+                    tonsPerContainer,
+                    includeShortHaulInDuty
                 });
+                result = { farmPriceRub };
             }
         } else {
             if (targetBaseLandingPriceCny > 0 && reverseFarmPriceFromBasePrice) {
@@ -62,6 +61,7 @@ function FarmPriceReverseModal({
                     usdCnyRate,
                     shortHaulFeePerTon,
                     exportExtras,
+                    includeShortHaulInDuty,
                     dutyRate,
                     vatRate,
                     intlFreightOverseasUsd,
@@ -74,12 +74,12 @@ function FarmPriceReverseModal({
             }
         }
         
-        setCalculatedFarmPrice(result);
+        setCalculationResult(result);
     };
     
     const handleApply = () => {
-        if (calculatedFarmPrice !== null && calculatedFarmPrice > 0) {
-            onApply(calculatedFarmPrice);
+        if (calculationResult !== null && calculationResult !== undefined && calculationResult.farmPriceRub > 0) {
+            onApply(calculationResult);
             onClose();
         }
     };
@@ -119,7 +119,7 @@ function FarmPriceReverseModal({
                         h('button', {
                             onClick: () => {
                                 setMode('arrival');
-                                setCalculatedFarmPrice(null);
+                                setCalculationResult(undefined);
                             },
                             className: `p-4 rounded-xl border-2 transition-all text-left ${
                                 mode === 'arrival'
@@ -143,7 +143,7 @@ function FarmPriceReverseModal({
                         h('button', {
                             onClick: () => {
                                 setMode('base');
-                                setCalculatedFarmPrice(null);
+                                setCalculationResult(undefined);
                             },
                             className: `p-4 rounded-xl border-2 transition-all text-left ${
                                 mode === 'base'
@@ -178,7 +178,7 @@ function FarmPriceReverseModal({
                             onChange: (e) => {
                                 const val = e.target.value;
                                 setTargetArrivalPriceCny(val === '' ? 0 : Number(val));
-                                setCalculatedFarmPrice(null);
+                                setCalculationResult(undefined);
                             },
                             placeholder: "0",
                             className: "w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -196,7 +196,7 @@ function FarmPriceReverseModal({
                             onChange: (e) => {
                                 const val = e.target.value;
                                 setTargetBaseLandingPriceCny(val === '' ? 0 : Number(val));
-                                setCalculatedFarmPrice(null);
+                                setCalculationResult(undefined);
                             },
                             placeholder: "0",
                             className: "w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -214,7 +214,7 @@ function FarmPriceReverseModal({
                     className: "w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
                 }, t('calculateFarmPrice')),
                 // 结果显示
-                calculatedFarmPrice !== null && calculatedFarmPrice > 0 ? h('div', {
+                calculationResult !== null && calculationResult !== undefined ? h('div', {
                     className: "bg-green-50 border-2 border-green-200 rounded-xl p-6"
                 },
                     h('div', { className: "flex items-center gap-3 mb-4" },
@@ -227,21 +227,21 @@ function FarmPriceReverseModal({
                         )
                     ),
                     h('div', { className: "text-3xl font-black text-green-700 mb-2" },
-                        calculatedFarmPrice.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+                        calculationResult.farmPriceRub.toLocaleString(undefined, { maximumFractionDigits: 2 }),
                         " RUB/t"
                     ),
                     h('div', { className: "text-sm text-green-600" },
                         "≈ ",
-                        (calculatedFarmPrice / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+                        (calculationResult.farmPriceRub / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 }),
                         " CNY/t"
                     ),
                     h('button', {
                         onClick: handleApply,
                         className: "mt-4 w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors"
                     }, t('applyThisPrice'))
-                ) : calculatedFarmPrice === null && calculatedFarmPrice !== undefined ? null : h('div', {
+                ) : calculationResult === null ? h('div', {
                     className: "bg-red-50 border-2 border-red-200 rounded-xl p-4 text-red-700 text-sm"
-                }, t('cannotCalculateFarmPrice'))
+                }, t('cannotCalculateFarmPrice')) : null
             )
         )
     );

@@ -6,10 +6,15 @@ import { reverseFarmPriceFromArrivalPrice, reverseFarmPriceFromBasePrice } from 
 import type { OverseaExtra, DomesticExtra } from '../types/index.d';
 import type { Language } from '../utils/i18n';
 
+export interface FarmPriceReverseApplyPayload {
+    farmPriceRub: number;
+    importPriceRubPerTon?: number;
+}
+
 interface FarmPriceReverseModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onApply: (farmPriceRub: number) => void;
+    onApply: (result: FarmPriceReverseApplyPayload) => void;
     
     // 当前参数（用于计算）
     exchangeRate: number;
@@ -17,18 +22,15 @@ interface FarmPriceReverseModalProps {
     /** 每吨短驳费合计（RUB/t），优先于公里数推算 */
     shortHaulFeePerTon: number;
     exportExtras: OverseaExtra[];
+    includeShortHaulInDuty: boolean;
     dutyRate: number;
     vatRate: number;
-    importPriceRub: number;
-    importPriceUnit: 'RUB/t' | 'RUB/柜';
     intlFreightOverseasUsd: number;
     intlFreightDomesticUsd: number;
     insuranceRate: number;
     domesticShortHaulCny: number;
     domesticExtras: DomesticExtra[];
     tonsPerContainer: number;
-    collectionDays: number;
-    interestRate: number;
     
     // 多语言支持
     language?: Language;
@@ -43,49 +45,49 @@ export function FarmPriceReverseModal({
     usdCnyRate,
     shortHaulFeePerTon,
     exportExtras,
+    includeShortHaulInDuty,
     dutyRate,
     vatRate,
-    importPriceRub,
-    importPriceUnit,
     intlFreightOverseasUsd,
     intlFreightDomesticUsd,
     insuranceRate,
     domesticShortHaulCny,
     domesticExtras,
     tonsPerContainer,
-    collectionDays,
-    interestRate,
     language = 'zh',
     t = (key) => key
 }: FarmPriceReverseModalProps) {
     const [mode, setMode] = useState<'arrival' | 'base'>('arrival');
     const [targetArrivalPriceCny, setTargetArrivalPriceCny] = useState<number>(0);
     const [targetBaseLandingPriceCny, setTargetBaseLandingPriceCny] = useState<number>(0);
-    const [calculatedFarmPrice, setCalculatedFarmPrice] = useState<number | null>(null);
+    const [calculationResult, setCalculationResult] = useState<FarmPriceReverseApplyPayload | null | undefined>(undefined);
     
     if (!isOpen) return null;
     
     const handleCalculate = () => {
-        let result: number | null = null;
+        let result: FarmPriceReverseApplyPayload | null = null;
         
         if (mode === 'arrival') {
             if (targetArrivalPriceCny > 0) {
-                result = reverseFarmPriceFromArrivalPrice({
+                const farmPriceRub = reverseFarmPriceFromArrivalPrice({
                     targetArrivalPriceCny,
                     exchangeRate,
                     shortHaulFeePerTon,
                     exportExtras,
-                    tonsPerContainer
+                    tonsPerContainer,
+                    includeShortHaulInDuty
                 });
+                result = { farmPriceRub };
             }
         } else {
             if (targetBaseLandingPriceCny > 0) {
-                result = reverseFarmPriceFromBasePrice({
+                const baseResult = reverseFarmPriceFromBasePrice({
                     targetBaseLandingPriceCny,
                     exchangeRate,
                     usdCnyRate,
                     shortHaulFeePerTon,
                     exportExtras,
+                    includeShortHaulInDuty,
                     dutyRate,
                     vatRate,
                     intlFreightOverseasUsd,
@@ -95,15 +97,16 @@ export function FarmPriceReverseModal({
                     domesticExtras,
                     tonsPerContainer
                 });
+                result = baseResult;
             }
         }
         
-        setCalculatedFarmPrice(result);
+        setCalculationResult(result);
     };
     
     const handleApply = () => {
-        if (calculatedFarmPrice !== null && calculatedFarmPrice > 0) {
-            onApply(calculatedFarmPrice);
+        if (calculationResult !== null && calculationResult !== undefined && calculationResult.farmPriceRub > 0) {
+            onApply(calculationResult);
             onClose();
         }
     };
@@ -143,7 +146,7 @@ export function FarmPriceReverseModal({
                             <button
                                 onClick={() => {
                                     setMode('arrival');
-                                    setCalculatedFarmPrice(null);
+                                    setCalculationResult(undefined);
                                 }}
                                 className={`p-4 rounded-xl border-2 transition-all text-left ${
                                     mode === 'arrival'
@@ -169,7 +172,7 @@ export function FarmPriceReverseModal({
                             <button
                                 onClick={() => {
                                     setMode('base');
-                                    setCalculatedFarmPrice(null);
+                                    setCalculationResult(undefined);
                                 }}
                                 className={`p-4 rounded-xl border-2 transition-all text-left ${
                                     mode === 'base'
@@ -208,7 +211,7 @@ export function FarmPriceReverseModal({
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setTargetArrivalPriceCny(val === '' ? 0 : Number(val));
-                                        setCalculatedFarmPrice(null);
+                                        setCalculationResult(undefined);
                                     }}
                                     placeholder="0"
                                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -228,7 +231,7 @@ export function FarmPriceReverseModal({
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setTargetBaseLandingPriceCny(val === '' ? 0 : Number(val));
-                                        setCalculatedFarmPrice(null);
+                                        setCalculationResult(undefined);
                                     }}
                                     placeholder="0"
                                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
@@ -253,7 +256,7 @@ export function FarmPriceReverseModal({
                     </button>
                     
                     {/* 结果显示 */}
-                    {calculatedFarmPrice !== null && (
+                    {calculationResult !== null && calculationResult !== undefined && (
                         <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
@@ -265,10 +268,10 @@ export function FarmPriceReverseModal({
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-green-700 mb-2">
-                                {calculatedFarmPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} RUB/t
+                                {calculationResult.farmPriceRub.toLocaleString(undefined, { maximumFractionDigits: 2 })} RUB/t
                             </div>
                             <div className="text-sm text-green-600">
-                                ≈ {(calculatedFarmPrice / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })} CNY/t
+                                ≈ {(calculationResult.farmPriceRub / exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })} CNY/t
                             </div>
                             <button
                                 onClick={handleApply}
@@ -279,7 +282,7 @@ export function FarmPriceReverseModal({
                         </div>
                     )}
                     
-                    {calculatedFarmPrice === null && calculatedFarmPrice !== undefined && (
+                    {calculationResult === null && (
                         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-red-700 text-sm">
                             {t('cannotCalculateFarmPrice')}
                         </div>
