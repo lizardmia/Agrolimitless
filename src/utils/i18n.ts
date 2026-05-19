@@ -1217,9 +1217,9 @@ const translations: Translations = {
         en: 'Implied profit/t'
     },
     'exportPriceForDutyHint': {
-        zh: '用于计算退税关税；不填则使用进口结算货值',
-        ru: 'Для расчета пошлины с возвратом НДС; если пусто — импортная стоимость',
-        en: 'Used for rebate duty; if blank, use import settlement value'
+        zh: '退税关税按保本出口价（退税口径）自动计算；此项仅用于反推盈利展示',
+        ru: 'Пошлина с возвратом НДС считается от безубыточной цены; это поле только для расчета маржи',
+        en: 'Rebate duty is calculated from the break-even rebate-basis price; this field only shows implied profit'
     },
     'effectiveDutyBase': {
         zh: '退税关税基础价',

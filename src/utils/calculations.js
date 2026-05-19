@@ -29,7 +29,6 @@ function calculatePricing(params) {
         exportPolicyMode = 'no-duty',
         exportDutyRate = 0,
         exportVatRate = 10,
-        exportPlanType = 'planned',
         
         // 国内段参数
         importPriceRub = 37000,
@@ -54,7 +53,6 @@ function calculatePricing(params) {
         // 海外段-期望盈利与关税计算选项
         expectedProfitPercent = 0,
         includeShortHaulInDuty = false,
-        exportPriceRub = 0,
         exportPriceNoRebateRub,
         expectedProfitPerTonRub
     } = params;
@@ -64,8 +62,6 @@ function calculatePricing(params) {
 
     const normalizedImportPriceRubPerTon =
         importPriceUnit === 'RUB/t' ? importPriceRub : importPriceRub / tpc;
-    const exportPriceForDutyRub =
-        exportPriceRub > 0 ? Number(exportPriceRub) : normalizedImportPriceRubPerTon;
     const exportPriceNoRebateForDutyRub =
         exportPriceNoRebateRub !== undefined &&
         exportPriceNoRebateRub !== null &&
@@ -146,7 +142,7 @@ function calculatePricing(params) {
     let exportDutyRub = 0;
     const adjustedRussianArrivalPriceRub = baseRussianArrivalPriceRub;
     if (exportPolicyMode === 'with-duty') {
-        exportDutyRub = exportPriceForDutyRub * (exportDutyRate / 100);
+        exportDutyRub = breakEvenExportPriceRub * (exportDutyRate / 100);
     }
 
     const russianArrivalPriceRub = baseRussianArrivalPriceRub;
@@ -158,7 +154,7 @@ function calculatePricing(params) {
     const suggestedExportDutyRub = suggestedExportPriceRub > 0 ? suggestedExportPriceRub * r : 0;
     const suggestedFarmPriceRub = 0;
 
-    const effectiveDutyBaseRub = exportPriceForDutyRub;
+    const effectiveDutyBaseRub = breakEvenExportPriceRub;
     const effectiveDutyBaseNoRebateRub = exportPriceNoRebateForDutyRub;
 
     // === 国内段计算 ===

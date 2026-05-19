@@ -814,17 +814,17 @@ function OverseaSection({
                             h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('breakEvenDutyPriceForRebate')),
                             h('span', { className: "text-[8px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded px-1 py-0.5 shrink-0" }, t('breakEvenFlag'))
                         ),
-                        h('div', { className: "flex items-center gap-1" },
+                        h('div', { className: "space-y-0.5" },
                             h('input', {
                                 type: 'number',
                                 min: 0,
                                 step: 100,
                                 value: breakEvenExportPriceRub === 0 ? '' : breakEvenExportPriceRub,
                                 readOnly: true,
-                                className: "min-w-0 flex-1 text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
+                                className: "w-full text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
                                 placeholder: t('importSettlementValue')
                             }),
-                            h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                            h('p', { className: "text-[8px] text-blue-500 text-right leading-none" }, 'RUB/t')
                         ),
                         h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('breakEvenDutyPriceHint'))
                     ),
@@ -833,17 +833,17 @@ function OverseaSection({
                             h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('breakEvenDutyPriceNoRebate')),
                             h('span', { className: "text-[8px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded px-1 py-0.5 shrink-0" }, t('breakEvenFlag'))
                         ),
-                        h('div', { className: "flex items-center gap-1" },
+                        h('div', { className: "space-y-0.5" },
                             h('input', {
                                 type: 'number',
                                 min: 0,
                                 step: 100,
                                 value: breakEvenExportPriceNoRebateRub === 0 ? '' : breakEvenExportPriceNoRebateRub,
                                 readOnly: true,
-                                className: "min-w-0 flex-1 text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
+                                className: "w-full text-right text-xs border border-blue-200 rounded px-1.5 py-0.5 bg-slate-50 text-slate-600 cursor-not-allowed",
                                 placeholder: t('importSettlementValue')
                             }),
-                            h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                            h('p', { className: "text-[8px] text-blue-500 text-right leading-none" }, 'RUB/t')
                         ),
                         h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('breakEvenDutyPriceHint'))
                     )
@@ -853,7 +853,7 @@ function OverseaSection({
                     h('div', { className: "grid grid-cols-1 sm:grid-cols-2 gap-2" },
                         h('div', { className: "space-y-1" },
                             h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDuty')),
-                            h('div', { className: "flex items-center gap-1" },
+                            h('div', { className: "space-y-0.5" },
                                 h('input', {
                                     type: 'number',
                                     min: 0,
@@ -868,10 +868,10 @@ function OverseaSection({
                                             if (!isNaN(n) && n >= 0) setExportPriceRub && setExportPriceRub(n);
                                         }
                                     },
-                                    className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                    className: "w-full text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
                                     placeholder: t('importSettlementValue')
                                 }),
-                                h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                                h('p', { className: "text-[8px] text-blue-500 text-right leading-none" }, 'RUB/t')
                             ),
                             h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyHint')),
                             exportPriceRub > 0 && h('div', { className: "grid grid-cols-2 gap-1 text-[8px] text-blue-700" },
@@ -896,7 +896,7 @@ function OverseaSection({
                         ),
                         h('div', { className: "space-y-1" },
                             h('label', { className: "text-[9px] font-bold text-blue-700 leading-tight block" }, t('exportPriceForDutyNoRebate')),
-                            h('div', { className: "flex items-center gap-1" },
+                            h('div', { className: "space-y-0.5" },
                                 h('input', {
                                     type: 'number',
                                     min: 0,
@@ -911,10 +911,10 @@ function OverseaSection({
                                             if (!isNaN(n) && n >= 0) setExportPriceNoRebateRub && setExportPriceNoRebateRub(n);
                                         }
                                     },
-                                    className: "min-w-0 flex-1 text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
+                                    className: "w-full text-right text-xs border border-blue-300 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400",
                                     placeholder: t('importSettlementValue')
                                 }),
-                                h('span', { className: "text-[10px] text-blue-600 shrink-0" }, 'RUB/t')
+                                h('p', { className: "text-[8px] text-blue-500 text-right leading-none" }, 'RUB/t')
                             ),
                             h('p', { className: "text-[8px] text-blue-500 leading-snug" }, t('exportPriceForDutyNoRebateHint')),
                             exportPriceNoRebateRub > 0 && h('div', { className: "grid grid-cols-2 gap-1 text-[8px] text-blue-700" },

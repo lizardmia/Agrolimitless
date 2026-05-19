@@ -1,7 +1,6 @@
 /**
  * Header 组件 - 页面头部（TypeScript 版本）
  */
-import React from 'react';
 import { Icon } from './Icon';
 import type { Language } from '../utils/i18n';
 
@@ -10,7 +9,7 @@ interface HeaderProps {
     t?: (key: string) => string;
 }
 
-export function Header({ language = 'zh', t = (key) => key }: HeaderProps) {
+export function Header({ t = (key) => key }: HeaderProps) {
     return (
         <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
             <div>
